@@ -96,6 +96,12 @@
 
 ## 8. Definition of Done universal
 
+El onboarding debe cumplir también [los requisitos adicionales del propietario](10-OWNER-REQUIREMENTS.md).
+Validar persistencia de selección múltiple, filtros, cupos y frecuencia antes de abrir
+el panel. El piloto no termina con enviar el saludo: falta demostrar respuesta
+WhatsApp autenticada → una búsqueda real autorizada → resultado visible. Cada
+componente no probado conserva su estado pendiente.
+
 - Feature con pruebas unitarias, integración mock y smoke test si toca integración real.
 - Una operación irreversible pasa por una política evaluable y con evento de auditoría.
 - Documentación CLI/API y screenshots simuladas (sin datos reales) actualizadas.

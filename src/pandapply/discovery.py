@@ -29,6 +29,8 @@ class Candidate(BaseModel):
     work_mode: str | None = None
     salary_usd_month: float | None = Field(default=None, ge=0)
     form: dict | None = None
+    locations: list[str] | None = None
+    languages: list[str] | None = None
 
 
 class ProfileCriteria(BaseModel):
@@ -40,6 +42,8 @@ class ProfileCriteria(BaseModel):
     salary_min_usd_month: float | None = Field(default=None, ge=0)
     work_mode: str | None = None
     excluded_companies: list[str] = Field(default_factory=list)
+    locations: list[str] = Field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -92,6 +96,16 @@ def evaluate(criteria: ProfileCriteria, job: Candidate, *, min_score: float = 0.
     missing = []
     if job.company.casefold() in {company.casefold() for company in criteria.excluded_companies}:
         reasons.append("Empresa excluida por el perfil")
+    if criteria.locations:
+        if not job.locations:
+            missing.append("Ubicación no especificada para validar el filtro")
+        elif not {p.strip().casefold() for p in criteria.locations} & {p.strip().casefold() for p in job.locations}:
+            reasons.append("Ubicación incompatible con el perfil")
+    if criteria.languages:
+        if not job.languages:
+            missing.append("Idioma de la vacante no especificado")
+        elif not {p.casefold().split('-')[0] for p in criteria.languages} & {p.casefold().split('-')[0] for p in job.languages}:
+            reasons.append("Idioma incompatible con el perfil")
     if criteria.salary_min_usd_month is not None:
         if job.salary_usd_month is None:
             missing.append("Salario no especificado")

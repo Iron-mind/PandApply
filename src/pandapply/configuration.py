@@ -18,6 +18,11 @@ class Configuration(BaseModel):
     version: int = 1
     locale: str = Field(default="es", min_length=2, max_length=35)
     search_enabled: bool = False
+    search_profile_ids: list[str] = Field(default_factory=list)
+    search_interval_minutes: int = Field(default=360, ge=5, le=10080)
+    max_results_per_run: int = Field(default=15, ge=1, le=100)
+    whatsapp_owner_jid: str = Field(default="", max_length=100)
+    hermes_executable: str = Field(default="", max_length=4096)
     gmail_enabled: bool = False
     gmail_reply_enabled: bool = False
     gmail_account: str = Field(default="", max_length=320)

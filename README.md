@@ -27,7 +27,14 @@ El asistente te guía para:
 1. Elegir Hermes y confirmar su perfil detectado, o indicar su ubicación si hace falta.
 2. Reutilizar la autorización existente de Gmail y comprobar la cuenta si lo deseas. La sesión de WhatsApp se reconoce, pero su canal en PandApply sigue pendiente.
 3. Elegir o crear un perfil profesional y registrar un CV PDF/DOCX, que también puedes agregar después.
-4. Iniciar el panel local. La terminal muestra su dirección, usuario y contraseña; Ctrl+C lo detiene.
+4. Elegir los perfiles que buscarán vacantes, cargos, ubicaciones, idiomas, habilidades como filtros, modalidad y piso salarial.
+5. Elegir el máximo diario de postulaciones, el volumen de evaluación y la frecuencia. Guardar esos valores no activa postulaciones ni crea un cron.
+6. Ofrecer un saludo piloto a tu propio WhatsApp mediante Hermes, con confirmación del número y del mensaje. El intento queda guardado para evitar reenvíos ciegos. La recepción automática de tu respuesta y el inicio de la primera búsqueda real siguen pendientes.
+7. Mostrar lo configurado y lo pendiente y, al final, ofrecer iniciar el panel local. La terminal muestra su dirección, usuario y contraseña; Ctrl+C lo detiene.
+
+SQLite se valida automáticamente durante el asistente (integridad, relaciones y escritura); no necesitas instalar un cliente SQL. Los requisitos adicionales del propietario y sus pendientes se documentan en [docs/10-OWNER-REQUIREMENTS.md](docs/10-OWNER-REQUIREMENTS.md).
+
+Los filtros de ubicación e idioma requieren datos explícitos de la vacante (`locations` y `languages` como listas). Si esos datos faltan, la evaluación exige revisión manual en lugar de ignorar el filtro. Las ubicaciones se comparan por nombre normalizado; los idiomas usan códigos como `es` o `en`.
 
 Puedes omitir Gmail y el CV y completar esos datos más adelante. Las credenciales permanecen en Hermes y los archivos originales de CV se conservan. La comprobación de Gmail no habilita respuestas ni envíos. Las integraciones externas son experimentales.
 

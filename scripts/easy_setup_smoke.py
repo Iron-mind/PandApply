@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix="pandapply setup smoke ") as temporary:
     env = {**os.environ, "HOME": str(root), "HERMES_HOME": str(root / "missing-hermes"),
            "XDG_DATA_HOME": str(root / "data"), "PYTHONPATH": str(source / "src")}
     result = subprocess.run(["sh", str(root / "install.sh"), "--configure-only"],
-                            input="1\n\nBackend\nUTC\n\nn\n", env=env, capture_output=True,
+                            input="1\n\nBackend\nUTC\n\nn\nn\nn\n", env=env, capture_output=True,
                             text=True, encoding="utf-8", timeout=60, check=False)
     if result.returncode:
         raise RuntimeError(result.stdout + result.stderr)

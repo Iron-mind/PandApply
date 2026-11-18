@@ -42,6 +42,14 @@
 | FR-22 | Autoevaluación | `doctor` prueba Hermes, modelo, navegador, correo, permisos, scheduler y almacenamiento |
 | FR-23 | Exportación/eliminación | Export JSON/CSV y borrado local controlado del usuario, incluidos PDF generados |
 | FR-24 | Modularidad | Puertos y adaptadores documentados; la lógica de negocio no importa paquetes internos de Hermes |
+| FR-25 | Easy setup | Un comando prepara el entorno virtual y abre un asistente; reutiliza Hermes/Gmail/WhatsApp existentes |
+| FR-26 | Configuración antes del panel | Validar SQLite, perfiles de búsqueda, filtros, frecuencia, volumen y cupo diario antes de ofrecer el panel |
+| FR-27 | Piloto de primera búsqueda | Saludo por WhatsApp al propietario; respuesta autenticada y contextual inicia una sola búsqueda, sin habilitar postulaciones |
+| FR-28 | Login visible | El enlace local abre un formulario de sesión; credenciales claras en la terminal y cierre de sesión |
+
+Los detalles añadidos por el propietario y el estado verificable se mantienen en
+[10-OWNER-REQUIREMENTS.md](10-OWNER-REQUIREMENTS.md). Una función pendiente allí
+sigue formando parte del alcance; no se considera terminada por figurar en el asistente.
 
 ## 4. Parámetros reconfigurables
 

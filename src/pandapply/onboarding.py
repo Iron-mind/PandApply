@@ -2,13 +2,15 @@
 
 import os
 import secrets
+import sqlite3
 from contextlib import closing
 from pathlib import Path
 
 from pandapply.adapters.hermes.installation import discover
 from pandapply.configuration import patch_settings, read_settings
 from pandapply.hermes_workspace import HermesWorkspaceReader, WorkspaceUnavailable
-from pandapply.profiles import add_profile, import_cv, list_profiles
+from pandapply.profiles import add_profile, edit_profile, import_cv, list_profiles
+from pandapply.setup_checks import check_database
 from pandapply.storage import connect, migrate
 
 
@@ -25,6 +27,64 @@ def yes(label: str, *, default: bool = True) -> bool:
         if answer in ("n", "no"):
             return False
         print("Responde s o n.")
+
+
+def number(label: str, default: int, minimum: int, maximum: int) -> int:
+    while True:
+        value = ask(label, str(default))
+        if value.isdigit() and minimum <= int(value) <= maximum:
+            return int(value)
+        print(f"Introduce un número entre {minimum} y {maximum}.")
+
+
+def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
+    settings = read_settings(db, config_path)
+    additional = ask("Otros perfiles que quieres crear, separados por comas (Enter para ninguno)")
+    profiles = list_profiles(db)
+    names = {p["name"].casefold() for p in profiles}
+    for name in [name.strip() for name in additional.split(",") if name.strip()]:
+        if name.casefold() not in names:
+            add_profile(db, name, "UTC", {})
+            names.add(name.casefold())
+    profiles = [p for p in list_profiles(db) if p["active"]]
+    default_ids = settings.search_profile_ids or [primary_profile_id]
+    for index, profile in enumerate(profiles, 1):
+        print(f"{index}. {profile['name']}")
+    default = ",".join(str(i) for i, p in enumerate(profiles, 1) if p["id"] in default_ids) or "1"
+    while True:
+        chosen = ask("¿Qué perfiles quieres que busquen vacantes? Números separados por comas", default)
+        parts = [part.strip() for part in chosen.split(",")]
+        if parts and all(p.isdigit() and 1 <= int(p) <= len(profiles) for p in parts):
+            selected = [profiles[i - 1] for i in dict.fromkeys(int(p) for p in parts)]
+            break
+        print("Selecciona números de la lista.")
+    for profile in selected:
+        print("Preferencias para " + profile["name"])
+        preferences = dict(profile["preferences"])
+        for field, label, fallback in (("role_queries", "Cargos o títulos a buscar", profile["name"]),
+                                       ("locations", "Países o ubicaciones", ""),
+                                       ("languages", "Idiomas de las vacantes", "es,en"),
+                                       ("must_have_skills", "Habilidades requeridas (filtro, no experiencia confirmada)", "")):
+            current = preferences.get(field, [])
+            value = ask(label + ", separados por comas", ",".join(current) if current else fallback)
+            preferences[field] = list(dict.fromkeys(p.strip() for p in value.split(",") if p.strip()))
+        while True:
+            mode = ask("Modalidad: remote, hybrid, onsite o any", preferences.get("work_mode") or "remote")
+            if mode in ("remote", "hybrid", "onsite", "any"):
+                preferences["work_mode"] = None if mode == "any" else mode
+                break
+            print("Elige remote, hybrid, onsite o any.")
+        preferences["salary_min_usd_month"] = number("Salario mínimo USD/mes (0 = sin filtro)",
+                                                     int(preferences.get("salary_min_usd_month") or 0), 0, 1_000_000) or None
+        edit_profile(db, profile["id"], preferences=preferences, expected_version=profile["version"])
+    quota = number("¿Cuántas vacantes al día quieres llenar como máximo? (0 = ninguna)",
+                   settings.max_confirmed_submissions_per_day, 0, 1000)
+    results = number("Máximo de vacantes a evaluar por búsqueda", settings.max_results_per_run, 1, 100)
+    interval = number("¿Cada cuántos minutos quieres buscar?", settings.search_interval_minutes, 5, 10080)
+    patch_settings(db, config_path, {"search_profile_ids": [p["id"] for p in selected],
+                   "max_confirmed_submissions_per_day": quota, "max_results_per_run": results,
+                   "search_interval_minutes": interval}, actor="cli")
+    print("Preferencias guardadas. El cupo no autoriza postulaciones; la búsqueda real y su programación siguen pendientes.")
 
 
 def dashboard(database: Path, *, host: str = "127.0.0.1", port: int = 8765) -> None:
@@ -52,6 +112,9 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             return 1
         migrate(database)
         with closing(connect(database)) as db:
+            print("SQLite: comprobando integridad, relaciones y escritura...")
+            check_database(db)
+            print("SQLite validado correctamente.")
             config_path = database.parent / "config.json"
             settings = read_settings(db, config_path)
             selected_home = home or (Path(settings.hermes_home) if settings.hermes_home else None)
@@ -75,7 +138,7 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             patch = {}
             if detected["home"]:
                 for key, field in (("hermes_home", "home"), ("hermes_python", "python"),
-                                   ("hermes_workspace_script", "workspace_script")):
+                                   ("hermes_workspace_script", "workspace_script"), ("hermes_executable", "executable")):
                     current = getattr(settings, key)
                     value = detected[field]
                     if (key == "hermes_home" or not current) and value:
@@ -113,6 +176,11 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                         print("No se pudo comprobar Gmail. Puedes continuar y revisar su autorización en Hermes después.")
                 else:
                     print("Gmail queda pendiente hasta configurar las rutas de Hermes.")
+            settings = read_settings(db, config_path)
+            if settings.gmail_account:
+                query = ask("Filtro de correo para el seguimiento Gmail", settings.gmail_query or "newer_than:7d")
+                patch_settings(db, config_path, {"gmail_query": query}, actor="cli")
+                print("Filtro guardado; el seguimiento automático no se activa en este paso.")
             print("\n2. Tu perfil profesional")
             profiles = [p for p in list_profiles(db) if p["active"]]
             profile_id = None
@@ -150,7 +218,46 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                     break
                 except (ValueError, OSError) as exc:
                     print(f"No se pudo registrar el CV: {exc}")
+            print("\n3. Búsqueda y límites")
+            if yes("¿Configurar ahora los perfiles, filtros y límites de búsqueda?"):
+                configure_search(db, config_path, profile_id)
+            print("\n4. Piloto de conexión por WhatsApp")
+            print("Este piloto prueba el saludo. La recepción automática de respuestas y la primera búsqueda real aún están pendientes.")
+            if yes("¿Enviar el saludo de prueba a tu propio WhatsApp?", default=False):
+                from pandapply.adapters.hermes.whatsapp import (
+                    INVITATION,
+                    HermesWhatsApp,
+                    WhatsAppOutcomeUnknown,
+                    invite,
+                    owner_jid,
+                )
+
+                settings = read_settings(db, config_path)
+                if not settings.hermes_home or not settings.hermes_executable:
+                    print("Piloto pendiente: falta el ejecutable o perfil de Hermes. Puedes continuar con CLI/web.")
+                else:
+                    while True:
+                        value = ask("Tu número WhatsApp con prefijo internacional (Enter para omitir)", settings.whatsapp_owner_jid)
+                        if not value:
+                            break
+                        try:
+                            target = owner_jid(value)
+                            print("Mensaje: " + INVITATION)
+                            if yes("¿Confirmas que es tu número y quieres enviar este saludo?", default=False):
+                                patch_settings(db, config_path, {"whatsapp_owner_jid": target}, actor="cli")
+                                try:
+                                    outcome = invite(db, HermesWhatsApp(Path(settings.hermes_executable), Path(settings.hermes_home)),
+                                                     target, confirm=True)
+                                    print("Estado del piloto: " + outcome["status"] + ". No se repetirá el saludo automáticamente.")
+                                except (ValueError, OSError, WhatsAppOutcomeUnknown) as exc:
+                                    print(str(exc))
+                            break
+                        except ValueError as exc:
+                            print(str(exc))
+            check_database(db)
         print("\nConfiguración local guardada. Las integraciones externas siguen siendo experimentales.")
+        print("Pendiente: búsqueda real y programación, recepción de respuestas WhatsApp y activación del seguimiento Gmail.")
+        print("\n5. Panel local (último paso)")
         if yes("¿Abrir el panel local ahora?"):
             dashboard(database)
         print("Puedes repetir este asistente sin perder tus perfiles ni decisiones.")
@@ -158,3 +265,6 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
     except (EOFError, KeyboardInterrupt):
         print("\nAsistente interrumpido. Lo ya guardado se conserva para la próxima ejecución.")
         return 130
+    except sqlite3.Error:
+        print("No se pudo validar o guardar SQLite. Conserva la base y revisa el acceso al directorio de datos.")
+        return 1

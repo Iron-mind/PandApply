@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from pandapply.configuration import read_settings
+from pandapply.discovery import Candidate, ProfileCriteria, evaluate
 from pandapply.onboarding import run
 from pandapply.profiles import list_profiles
 from pandapply.storage import connect
@@ -22,12 +23,12 @@ def answers(monkeypatch, values):
 def test_wizard_creates_profile_and_resumes_without_duplicate(tmp_path, monkeypatch):
     monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
     path = tmp_path / "pandapply.db"
-    answers(monkeypatch, ["1", "", "Backend", "UTC", "", "n"])
+    answers(monkeypatch, ["1", "", "Backend", "UTC", "", "n", "n", "n"])
     assert run(path) == 0
     with connect(path) as db:
         assert [p["name"] for p in list_profiles(db)] == ["Backend"]
         assert read_settings(db, tmp_path / "config.json").dry_run
-    answers(monkeypatch, ["1", "", "1", "", "n"])
+    answers(monkeypatch, ["1", "", "1", "", "n", "n", "n"])
     assert run(path) == 0
     with connect(path) as db:
         assert len(list_profiles(db)) == 1
@@ -62,3 +63,35 @@ def test_bootstrap_installs_and_launches_using_only_its_virtualenv(tmp_path, mon
     assert installer.main() == 0
     assert calls == [[str(python), "-m", "pip", "install", "-e", str(tmp_path)],
                      [str(python), "-m", "pandapply", "setup", "--wizard"]]
+
+
+def test_full_setup_saves_search_preferences_before_offering_dashboard(tmp_path, monkeypatch):
+    monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
+    answers(monkeypatch, ["1", "", "Backend", "UTC", "", "s", "QA", "1,2",
+                          "Backend Engineer", "Colombia", "es,en", "Python", "remote", "2000",
+                          "QA Engineer", "Colombia", "es", "Testing", "hybrid", "1500",
+                          "3", "12", "120", "n", "s"])
+    observed = []
+
+    def panel(path):
+        with connect(path) as db:
+            settings = read_settings(db, path.parent / "config.json")
+            observed.append(settings.max_confirmed_submissions_per_day)
+            assert len(settings.search_profile_ids) == 2
+            assert settings.max_results_per_run == 12 and settings.search_interval_minutes == 120
+            assert not settings.auto_apply_enabled and not settings.search_enabled
+            assert db.execute("SELECT count(*) FROM knowledge_claims").fetchone()[0] == 0
+
+    monkeypatch.setattr("pandapply.onboarding.dashboard", panel)
+    assert run(tmp_path / "data.db") == 0
+    assert observed == [3]
+
+
+def test_onboarding_location_and_language_constraints_are_not_ignored():
+    criteria = ProfileCriteria(locations=["Colombia"], languages=["es"], must_have_skills=["Python"],
+                               confirmed_claims=["Python"])
+    job = Candidate(title="Developer", company="Example", url="https://jobs.example.test/job", skills=["Python"])
+    assert evaluate(criteria, job).status == "MANUAL_REVIEW"
+    assert evaluate(criteria, job.model_copy(update={"locations": ["Chile"], "languages": ["es"]})).status == "SKIPPED_INELIGIBLE"
+    assert evaluate(criteria, job.model_copy(update={"locations": ["Colombia"], "languages": ["en"]})).status == "SKIPPED_INELIGIBLE"
+    assert evaluate(criteria, job.model_copy(update={"locations": ["Colombia"], "languages": ["es-CO"]})).status == "MATCHED"

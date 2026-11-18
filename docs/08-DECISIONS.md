@@ -18,6 +18,11 @@
 | 014 | Diseño propuesto | Recibo obligatorio; `SUBMISSION_UNKNOWN` sin reintento | Evitar duplicados irreversibles |
 | 015 | Diseño propuesto | Google Workspace Hermes primario; Gmail MCP futuro | MCP remoto aún en Developer Preview |
 | 016 | Diseño propuesto | Dashboard PandApply propio, no solo Hermes | Seguimiento específico y Windows |
+| 017 | Solicitado por el propietario | Instalador de un comando y asistente completo; entorno virtual automático | Evitar cadenas de comandos manuales |
+| 018 | Solicitado por el propietario | Aprovechar Hermes, Gmail y WhatsApp ya configurados | Evitar repetir autorizaciones y configuraciones |
+| 019 | Solicitado por el propietario | Configurar perfiles buscados, filtros y cupos antes de abrir panel | El panel es el último paso del asistente |
+| 020 | Solicitado por el propietario | Piloto WhatsApp con saludo y autorización para primera búsqueda | Validar recorrido externo completo, sin confundir saludo con búsqueda ejecutada |
+| 021 | Solicitado por el propietario | El desarrollador ejecuta pruebas locales; propietario valida integraciones externas necesarias | No delegar pruebas internas al usuario |
 
 ## Supuestos de implementación a confirmar con UX en wizard
 

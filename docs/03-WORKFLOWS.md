@@ -1,5 +1,19 @@
 # 03 — Flujos, decisiones y estados
 
+## 0. Onboarding y piloto del propietario
+
+El orden requerido es instalación aislada → detección de Hermes y perfil → validación
+SQLite → cuenta/filtro Gmail → perfiles/CV → selección de perfiles de búsqueda y
+preferencias → cupos/frecuencia → resumen de pendientes → piloto WhatsApp → panel.
+El panel se ofrece al final porque su servidor mantiene ocupada la terminal.
+Un cupo guardado no habilita envíos y una frecuencia guardada no crea un cron por sí sola.
+
+El piloto pregunta «Hola, soy PandApply. ¿Quieres que ejecutemos la primera búsqueda
+de vacantes?». El saludo necesita destino propio confirmado, intento persistido,
+recibo y manejo UNKNOWN sin reenvío ciego. Su recepción no es autorización de búsqueda:
+se requiere una respuesta afirmativa autenticada y vinculada al piloto. El alcance
+completo y los componentes pendientes están en [10-OWNER-REQUIREMENTS.md](10-OWNER-REQUIREMENTS.md).
+
 ## 1. Flujo A — búsqueda y postulación automática
 
 **Precondiciones:** configuración validada; consentimiento explícito `auto_apply_enabled=true`; perfiles y límites disponibles; conector Google/search sano; navegador probado; fuentes/permisos habilitados.

@@ -8,6 +8,15 @@ del panel exigen Origin local y token CSRF. Estas rutas HTML están fuera del pr
 `/api/v1`; las modificaciones de la API siguen exigiendo Bearer, aunque el navegador
 tenga una sesión válida.
 
+La configuración local de onboarding incorpora `search_profile_ids` (IDs de perfiles
+seleccionados), `search_interval_minutes` (5–10080), `max_results_per_run` (1–100),
+`max_confirmed_submissions_per_day` (0–1000), `hermes_executable` y
+`whatsapp_owner_jid` (destino personal confirmado). Los criterios de búsqueda se
+guardan en las preferencias del perfil; no crean claims profesionales confirmados.
+El saludo piloto usa `event_outbox`, tipo `PILOT_INVITATION`, con intento previo
+`SENDING`, recibo `SENT` o resultado `UNKNOWN`. El payload de auditoría contiene
+el hash del destino, no el número. Un intento previo impide repetir el saludo.
+
 ## 1. Estrategia de persistencia
 
 **SQLite** es la fuente de verdad transaccional para vacantes, postulaciones, ejecución, decisiones, deduplicación, correos y auditoría. **Markdown** almacena conocimiento profesional transparente y modificable. **Archivos PDF/DOCX** se leen como fuentes (originales inmutables); **PDF generados** son artefactos derivados. Configuración YAML local se valida con Pydantic.

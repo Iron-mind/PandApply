@@ -84,3 +84,10 @@ Windows (entorno virtual nuevo y descarga de dependencias) y con
 `scripts/easy_setup_smoke.py` en Linux dentro del contenedor sin red. La prueba
 Linux reutiliza el entorno del contenedor y comprueba el lanzador y la configuración
 guiada con un perfil ficticio; no prueba la descarga de dependencias en Linux.
+
+Para el saludo piloto se verificaron `hermes send --help` y `hermes_cli/send_cmd.py`:
+`send --to whatsapp:NUMERO@s.whatsapp.net --json --file -` recibe el texto por stdin
+y devuelve un JSON con `success` y `message_id`. `scripts/hermes_whatsapp_contract.py`
+ejecuta el parser y la salida JSON reales con un backend falso, sin red ni credenciales.
+No envía mensajes. La entrega real por WhatsApp, la recepción autenticada de la respuesta
+y el inicio de la primera búsqueda no quedan comprobados por esa prueba.
