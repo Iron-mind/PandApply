@@ -35,6 +35,11 @@ from pandapply.work_modes import work_mode_label, work_mode_preference
 security = HTTPBasic(auto_error=False)
 
 
+class InvalidBrowserForm(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=403, detail="Invalid origin or CSRF token")
+
+
 class DecisionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: str
@@ -98,7 +103,20 @@ def create_app(database: Path, token: str) -> FastAPI:
     def check_form(request: Request, csrf: str) -> None:
         origin = request.headers.get("origin")
         if origin != f"http://{request.url.netloc}" or not secrets.compare_digest(csrf.encode(), csrf_secret.encode()):
-            raise HTTPException(status_code=403, detail="Invalid origin or CSRF token")
+            raise InvalidBrowserForm()
+
+    @app.exception_handler(InvalidBrowserForm)
+    async def invalid_browser_form(request: Request, exc: InvalidBrowserForm):
+        destination = "/login" if request.url.path == "/login" else "/"
+        return HTMLResponse(
+            "<!doctype html><html lang='es'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            "<title>Vuelve a abrir el formulario — PandApply</title></head>"
+            "<body><main><h1>No se pudo validar esta página</h1>"
+            "<p>La página puede haber quedado desactualizada después de reiniciar el panel. "
+            "Abre de nuevo el formulario e inténtalo otra vez. Si reiniciaste PandApply, "
+            "usa la nueva contraseña de la terminal.</p>"
+            f"<a href='{destination}'>Volver a abrir el formulario</a></main></body></html>", status_code=403)
 
     @app.middleware("http")
     async def protect_browser(request: Request, call_next):
@@ -106,7 +124,9 @@ def create_app(database: Path, token: str) -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Referrer-Policy"] = "no-referrer"
+        # no-referrer makes native HTML form POSTs send Origin: null, which
+        # correctly fails our origin check. Keep the origin for local navigation.
+        response.headers["Referrer-Policy"] = "same-origin"
         return response
 
     def login_page(*, invalid: bool = False) -> HTMLResponse:

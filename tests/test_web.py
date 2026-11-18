@@ -18,11 +18,19 @@ def test_login_form_session_logout_and_api_boundaries(tmp_path):
     assert page.status_code == 200 and page.url.path == "/login"
     assert "Iniciar sesión" in page.text and "type='password'" in page.text
     assert "WWW-Authenticate" not in page.headers and "secret" not in page.text
+    assert page.headers["referrer-policy"] == "same-origin"
     csrf = re.search(r"name='csrf' value='([^']+)'", page.text).group(1)
     data = {"username": "pandapply", "password": "secret", "csrf": csrf}
     origin = {"Origin": "http://localhost"}
     assert client.post("/login", data=data).status_code == 403
     assert client.post("/login", data=data, headers={"Origin": "https://evil.test"}).status_code == 403
+    null_origin = client.post("/login", data=data, headers={"Origin": "null"})
+    assert null_origin.status_code == 403 and "text/html" in null_origin.headers["content-type"]
+    assert "Volver a abrir el formulario" in null_origin.text
+    assert "secret" not in null_origin.text and "pandapply_session" not in client.cookies
+    stale = client.post("/login", data={**data, "csrf": "old-form"}, headers=origin)
+    assert stale.status_code == 403 and "href='/login'" in stale.text
+    assert "pandapply_session" not in client.cookies
     bad = client.post("/login", data={**data, "password": "contraseña inválida"}, headers=origin)
     assert bad.status_code == 401 and "incorrectos" in bad.text
     assert "WWW-Authenticate" not in bad.headers

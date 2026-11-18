@@ -115,6 +115,8 @@ Con al menos una habilidad verificada, `pandapply profiles generate-cv ID_DEL_PE
 
 `pandapply web` abre un servidor local en `127.0.0.1:8765`. El enlace lleva a una pantalla de inicio de sesión: introduce el usuario `pandapply` y la contraseña aleatoria mostrada en la terminal, en líneas separadas. La contraseña cambia al reiniciar el panel. La sesión dura hasta 12 horas; puedes terminarla con «Cerrar sesión» y se invalida al reiniciar el servidor. El panel permite consultar la actividad, solicitar sugerencias y aprobar o rechazar decisiones locales; muestra el texto completo y la cuenta antes de enviar una respuesta aprobada. Para detenerlo, usa Ctrl+C. La API sigue aceptando autenticación Basic o Bearer para lecturas y exige Bearer para sus modificaciones. Las decisiones están protegidas contra solicitudes entre sitios y repeticiones. Solo se implementa una parte del contrato de `specs/openapi.yaml`.
 
+Si tenías una pestaña abierta antes de reiniciar el panel, vuelve a abrir `/login` y usa la nueva contraseña de la terminal. Un formulario desactualizado muestra una página de recuperación; su enlace abre un formulario nuevo y no repite la operación anterior. Tras actualizar el código, reinicia el panel para que cargue la corrección.
+
 También puedes consultar `pandapply decisions list` y responder con `pandapply decisions respond ID_DE_LA_DECISIÓN approve` (o `reject`). Las decisiones anteriores limitadas al canal CLI siguen restringidas a ese canal.
 
 ## Demo integral simulada

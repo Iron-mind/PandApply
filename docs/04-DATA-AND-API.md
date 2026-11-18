@@ -8,6 +8,12 @@ del panel exigen Origin local y token CSRF. Estas rutas HTML están fuera del pr
 `/api/v1`; las modificaciones de la API siguen exigiendo Bearer, aunque el navegador
 tenga una sesión válida.
 
+Los fallos de validación de formularios HTML conservan el estado HTTP 403 y ofrecen
+una página para volver a abrir el formulario, sin mostrar datos enviados ni repetir
+la operación. La política `Referrer-Policy: same-origin` permite que el navegador
+conserve el origen en los POST nativos locales; `Origin: null` y tokens inválidos
+siguen bloqueados. Las respuestas de error de la API conservan su formato JSON.
+
 La configuración local de onboarding incorpora `search_profile_ids` (IDs de perfiles
 seleccionados), `search_interval_minutes` (5–10080), `max_results_per_run` (1–100),
 `max_confirmed_submissions_per_day` (0–1000), `hermes_executable` y

@@ -100,3 +100,11 @@ que el entorno pertenezca a `environments` de esa instalación y tenga `pyvenv.c
 Se comprobó que resuelve el intérprete y Google Workspace locales sin ejecutar Hermes
 ni consultar Gmail. No se considera prueba de autenticación Gmail. Una selección PM
 inválida no permite recurrir silenciosamente a un entorno antiguo del checkout.
+
+`scripts/hermes_login_smoke.py` reproduce con Chromium real el fallo de login:
+la política antigua `no-referrer` provoca `Origin: null` en el envío nativo del
+formulario y el servidor lo rechaza. Con `same-origin`, el mismo navegador envía
+el origen local y entra al panel. El comportamiento coincide con la
+[documentación de Referrer-Policy sobre Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy#effect_on_the_origin_header).
+La prueba usa un servidor, base y contraseña ficticios dentro de Docker sin red;
+no utiliza perfiles del usuario. La protección de origen y token CSRF permanece activa.
