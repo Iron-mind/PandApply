@@ -95,3 +95,19 @@ def test_onboarding_location_and_language_constraints_are_not_ignored():
     assert evaluate(criteria, job.model_copy(update={"locations": ["Chile"], "languages": ["es"]})).status == "SKIPPED_INELIGIBLE"
     assert evaluate(criteria, job.model_copy(update={"locations": ["Colombia"], "languages": ["en"]})).status == "SKIPPED_INELIGIBLE"
     assert evaluate(criteria, job.model_copy(update={"locations": ["Colombia"], "languages": ["es-CO"]})).status == "MATCHED"
+
+
+def test_gmail_connection_does_not_ask_for_internal_paths(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "hermes"
+    home.mkdir()
+    detected = no_hermes() | {"home": str(home)}
+    monkeypatch.setattr("pandapply.onboarding.discover", lambda **kwargs: detected)
+    replies = iter(["1", "s", "s", "Backend", "UTC", "", "n", "n", "n"])
+
+    def answer(prompt):
+        assert "Ejecutable Python" not in prompt and "google_api.py" not in prompt
+        return next(replies)
+
+    monkeypatch.setattr("builtins.input", answer)
+    assert run(tmp_path / "data.db") == 0
+    assert "Gmail queda pendiente" in capsys.readouterr().out

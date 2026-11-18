@@ -1,9 +1,45 @@
 """Read-only discovery of existing Hermes assets; never opens credential files."""
 
+import hashlib
+import json
 import os
 import re
 import shutil
 from pathlib import Path
+
+
+def _managed_python(project: Path, homes: list[Path], issues: list[str]) -> tuple[bool, list[Path]]:
+    """Read PM's committed environment for this exact checkout, without importing Hermes."""
+    key = hashlib.sha256(str(project.resolve()).encode("utf-8")).hexdigest()[:16]
+    found = False
+    selected = []
+    for home in dict.fromkeys(homes):
+        state = home / "installs" / key
+        facts = state / "facts.json"
+        if not facts.is_file():
+            continue
+        try:
+            if facts.is_symlink() or facts.stat().st_size > 1_000_000:
+                raise ValueError("Invalid installation metadata")
+            data = json.loads(facts.read_text(encoding="utf-8-sig"))
+            value = data.get("packages", {}).get("venv", {}).get("environment")
+            if value is None:
+                continue
+            found = True
+            if not isinstance(value, str) or not Path(value).is_absolute():
+                raise ValueError("Invalid environment")
+            environment = Path(value)
+            if (not environment.resolve().is_relative_to((state / "environments").resolve())
+                    or not (environment / "pyvenv.cfg").is_file()):
+                raise ValueError("Missing or foreign environment")
+            python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            if not python.is_file():
+                raise ValueError("Missing interpreter")
+            selected.append(python.absolute())
+        except (OSError, ValueError, AttributeError):
+            found = True
+            issues.append("Hermes selected environment is unavailable; repair Hermes before connecting Gmail")
+    return found, selected
 
 
 def discover(*, home: Path | None = None, root: Path | None = None,
@@ -47,16 +83,41 @@ def discover(*, home: Path | None = None, root: Path | None = None,
     if not roots and executable:
         roots = list(dict.fromkeys([Path(executable).absolute().parent.parent,
                                    Path(executable).resolve().parent.parent]))
+    if not root and home:
+        roots.append(home.parent.parent if home.parent.name == "profiles" else home)
+    # Native installers place the checkout beside bin/, rather than inside the data home.
+    for parent in list(roots):
+        checkout = parent / "hermes-agent"
+        if (checkout / "pyproject.toml").is_file() and (checkout / "hermes_cli").is_dir():
+            roots.append(checkout)
+    roots = list(dict.fromkeys(roots))
+    homes = [home] if home else []
+    if home and home.parent.name == "profiles":
+        homes.append(home.parent.parent)
+    if executable:
+        homes.append(Path(executable).absolute().parent.parent)
+    managed_found = False
+    managed = []
+    if not interpreter:
+        for project in roots:
+            if (project / "pyproject.toml").is_file() and (project / "hermes_cli").is_dir():
+                found, candidates = _managed_python(project, homes + [project.parent], issues)
+                managed_found |= found
+                managed.extend(candidates)
     if interpreter:
         python_candidates = [interpreter.expanduser().absolute()]
     else:
-        python_candidates = [r / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python") for r in roots]
+        python_candidates = [r / folder / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+                             for r in roots for folder in (".venv", "venv")]
         if executable:
             python_candidates.insert(0, Path(executable).absolute().parent / ("python.exe" if os.name == "nt" else "python"))
     pythons = list(dict.fromkeys(p for p in python_candidates if p.is_file()))
     # Only select a venv interpreter automatically. Explicit paths remain visible for validation.
     if not interpreter:
         pythons = [p for p in pythons if (p.parent.parent / "pyvenv.cfg").is_file()]
+        if managed_found:
+            # A committed PM generation takes precedence over stale in-tree venvs.
+            pythons = list(dict.fromkeys(managed))
     if len(pythons) > 1:
         issues.append("Multiple Hermes interpreters found; use --hermes-python")
     skill = Path("skills/productivity/google-workspace/scripts/google_api.py")

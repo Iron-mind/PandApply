@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import sys
@@ -26,6 +27,39 @@ def fixture_installation(tmp_path):
     script.parent.mkdir(parents=True)
     script.write_text("# fixture", encoding="utf-8")
     return home, root, python, script
+
+
+def test_native_launcher_finds_selected_managed_environment(tmp_path, monkeypatch):
+    home = tmp_path / "hermes"
+    executable = home / "bin/hermes.exe"
+    executable.parent.mkdir(parents=True)
+    executable.touch()
+    project = home / "hermes-agent"
+    (project / "hermes_cli").mkdir(parents=True)
+    (project / "pyproject.toml").touch()
+    key = hashlib.sha256(str(project.resolve()).encode("utf-8")).hexdigest()[:16]
+    state = home / "installs" / key
+    environment = state / "environments/current/venv"
+    python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python.parent.mkdir(parents=True)
+    python.touch()
+    (environment / "pyvenv.cfg").touch()
+    facts = state / "facts.json"
+    facts.write_text(json.dumps({"packages": {"venv": {"environment": str(environment)}}}), encoding="utf-8")
+    old_python = project / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    old_python.parent.mkdir(parents=True)
+    old_python.touch()
+    (old_python.parent.parent / "pyvenv.cfg").touch()
+    monkeypatch.setattr("pandapply.adapters.hermes.installation.shutil.which", lambda name: str(executable))
+    assert discover(home=home)["python"] == str(python)
+    monkeypatch.setattr("pandapply.adapters.hermes.installation.shutil.which", lambda name: None)
+    assert discover(home=home)["python"] == str(python)
+    python.unlink()
+    result = discover(home=home)
+    assert result["python"] is None and result["issues"]
+    # An invalid PM selection must not silently select another environment.
+    facts.write_text(json.dumps({"packages": {"venv": {"environment": str(old_python.parent.parent)}}}), encoding="utf-8")
+    assert discover(home=home)["python"] is None
 
 
 def test_discovery_never_reads_or_exposes_credentials(tmp_path, monkeypatch):

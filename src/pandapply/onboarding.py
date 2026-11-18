@@ -156,16 +156,14 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             print("Gmail: " + ("autorización existente detectada" if detected["gmail"] != "not_detected" else "no detectado"))
             print("WhatsApp: " + ("sesión existente detectada; canal PandApply pendiente" if detected["whatsapp"] != "not_detected" else "no detectado (opcional)"))
             if detected["home"] and yes("¿Comprobar ahora tu cuenta de Gmail en Hermes?", default=detected["gmail"] != "not_detected"):
-                for key, label in (("hermes_python", "Ejecutable Python del entorno de Hermes"),
-                                   ("hermes_workspace_script", "Archivo google_api.py de Google Workspace")):
-                    while not getattr(settings, key):
-                        value = ask(label + " (Enter para omitir)").strip('"')
-                        if not value:
-                            break
-                        if Path(value).expanduser().is_file():
-                            settings = patch_settings(db, config_path, {key: str(Path(value).expanduser().absolute())}, actor="cli")
-                        else:
-                            print("No se encontró el archivo.")
+                print("Preparando la conexión con la instalación existente de Hermes...")
+                refreshed = discover(home=Path(settings.hermes_home), root=root, interpreter=interpreter)
+                detected_paths = {"hermes_python": refreshed["python"],
+                                  "hermes_workspace_script": refreshed["workspace_script"]}
+                repair = {key: value for key, value in detected_paths.items() if value and (
+                          not getattr(settings, key) or not Path(getattr(settings, key)).is_file())}
+                if repair:
+                    settings = patch_settings(db, config_path, repair, actor="cli")
                 if settings.hermes_python and settings.hermes_workspace_script:
                     try:
                         reader = HermesWorkspaceReader(Path(settings.hermes_python), Path(settings.hermes_workspace_script),
@@ -179,7 +177,8 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                     except (OSError, ValueError, WorkspaceUnavailable):
                         print("No se pudo comprobar Gmail. Puedes continuar y revisar su autorización en Hermes después.")
                 else:
-                    print("Gmail queda pendiente hasta configurar las rutas de Hermes.")
+                    print("No se pudo preparar la conexión con Gmail automáticamente. "
+                          "Gmail queda pendiente; puedes continuar y revisar la instalación de Hermes después.")
             settings = read_settings(db, config_path)
             if settings.gmail_account:
                 query = ask("Filtro de correo para el seguimiento Gmail", settings.gmail_query or "newer_than:7d")

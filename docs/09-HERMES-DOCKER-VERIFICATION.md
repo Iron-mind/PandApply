@@ -91,3 +91,12 @@ y devuelve un JSON con `success` y `message_id`. `scripts/hermes_whatsapp_contra
 ejecuta el parser y la salida JSON reales con un backend falso, sin red ni credenciales.
 No envía mensajes. La entrega real por WhatsApp, la recepción autenticada de la respuesta
 y el inicio de la primera búsqueda no quedan comprobados por esa prueba.
+
+También se contrastó la distribución nativa Windows instalada: lanzador bajo `bin`,
+código bajo `hermes-agent` y dependencias seleccionadas por PM en
+`installs/<sha256-del-checkout:16>/facts.json`, clave
+`packages.venv.environment`. La detección lee únicamente esa metadata y comprueba
+que el entorno pertenezca a `environments` de esa instalación y tenga `pyvenv.cfg`.
+Se comprobó que resuelve el intérprete y Google Workspace locales sin ejecutar Hermes
+ni consultar Gmail. No se considera prueba de autenticación Gmail. Una selección PM
+inválida no permite recurrir silenciosamente a un entorno antiguo del checkout.
