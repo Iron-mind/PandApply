@@ -3,7 +3,6 @@
 import argparse
 import json
 import os
-import secrets
 import sys
 import uuid
 from pathlib import Path
@@ -36,6 +35,9 @@ def main() -> int:
     setup.add_argument("--hermes-root", type=Path, help="Existing Hermes source installation")
     setup.add_argument("--hermes-python", type=Path, help="Existing Hermes virtual environment Python")
     setup.add_argument("--verify-gmail", action="store_true", help="Query the existing Gmail authorization for account identity")
+    setup_mode = setup.add_mutually_exclusive_group()
+    setup_mode.add_argument("--wizard", action="store_true", help="Run the step-by-step setup assistant")
+    setup_mode.add_argument("--non-interactive", action="store_true", help="Print a JSON report without prompting")
     profiles = sub.add_parser("profiles", help="Manage local professional profiles")
     profile_commands = profiles.add_subparsers(dest="profile_command", required=True)
     profile_commands.add_parser("list")
@@ -483,13 +485,9 @@ def main() -> int:
             parser.error("Run pandapply setup first")
         if not 1 <= args.port <= 65535:
             parser.error("Port must be between 1 and 65535")
-        import uvicorn
+        from pandapply.onboarding import dashboard
 
-        from pandapply.web import create_app
-
-        token = secrets.token_urlsafe(24)
-        print(f"Open http://127.0.0.1:{args.port}/ — user: pandapply — password: {token}", flush=True)
-        uvicorn.run(create_app(path, token), host=args.host, port=args.port, log_level="warning")
+        dashboard(path, host=args.host, port=args.port)
         return 0
     if args.command == "profiles":
         if not path.exists():
@@ -525,6 +523,12 @@ def main() -> int:
     from pandapply.hermes_workspace import HermesWorkspaceReader, WorkspaceUnavailable
 
     try:
+        if args.wizard or (sys.stdin.isatty() and not args.non_interactive and not args.dry_run and not args.verify_gmail):
+            if args.dry_run or args.verify_gmail:
+                raise ValueError("Use --wizard alone; Gmail verification is offered inside the assistant")
+            from pandapply.onboarding import run
+
+            return run(path, home=args.hermes_home, root=args.hermes_root, interpreter=args.hermes_python)
         if args.dry_run and args.verify_gmail:
             raise ValueError("--dry-run cannot contact Gmail; run setup --verify-gmail separately")
         detected = discover(home=args.hermes_home, root=args.hermes_root, interpreter=args.hermes_python)

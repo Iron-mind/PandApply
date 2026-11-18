@@ -2,7 +2,42 @@
 
 PandApply es un proyecto en desarrollo para asistir en la búsqueda de empleo desde el equipo del usuario. Incluye una demo local completa con datos ficticios y conectores experimentales para Hermes. El diseño completo está en [docs/](docs/05-IMPLEMENTATION-PLAN.md).
 
-## Prueba local
+## Getting started con Hermes
+
+Necesitas Python 3.11 o posterior y esta carpeta del proyecto descargada o clonada. Si ya usas Hermes con Gmail o WhatsApp, el asistente intentará aprovechar esa instalación. También puedes comenzar con las funciones locales sin tener Hermes instalado.
+
+Abre una terminal en la carpeta de PandApply y ejecuta **un comando**:
+
+**Windows:**
+
+```powershell
+.\install.cmd
+```
+
+**Linux:**
+
+```sh
+sh install.sh
+```
+
+El instalador crea un entorno virtual exclusivo, instala las dependencias y abre el asistente. No necesitas activar `.venv` ni ejecutar comandos adicionales de configuración. En Linux, Python debe tener disponible el módulo `venv`.
+
+El asistente te guía para:
+
+1. Elegir Hermes y confirmar su perfil detectado, o indicar su ubicación si hace falta.
+2. Reutilizar la autorización existente de Gmail y comprobar la cuenta si lo deseas. La sesión de WhatsApp se reconoce, pero su canal en PandApply sigue pendiente.
+3. Elegir o crear un perfil profesional y registrar un CV PDF/DOCX, que también puedes agregar después.
+4. Iniciar el panel local. La terminal muestra su dirección, usuario y contraseña; Ctrl+C lo detiene.
+
+Puedes omitir Gmail y el CV y completar esos datos más adelante. Las credenciales permanecen en Hermes y los archivos originales de CV se conservan. La comprobación de Gmail no habilita respuestas ni envíos. Las integraciones externas son experimentales.
+
+Para volver al asistente sin reinstalar, ejecuta `.\install.cmd --configure-only` en Windows o `sh install.sh --configure-only` en Linux. Si interrumpes la configuración, se conserva lo que ya hayas guardado. Las instalaciones de Hermes dentro de WSL o Docker requieren ejecutar PandApply en ese mismo entorno o configurar el puente correspondiente; el instalador del host no las conecta automáticamente.
+
+## Getting started con OpenClaw — incoming
+
+La integración con OpenClaw está prevista y todavía no está disponible. No requiere instalación ni configuración por ahora. El asistente identifica esta opción como «próximamente»; Hermes es el motor disponible para esta versión.
+
+## Instalación manual para desarrollo
 
 Requiere Python 3.11 o posterior y un entorno virtual exclusivo para PandApply. En PowerShell (Windows):
 
@@ -29,7 +64,7 @@ python -m pytest -q
 
 Activa `.venv` cada vez que abras una terminal para usar `pandapply`. Si PowerShell impide activar scripts, puedes ejecutar directamente `.\.venv\Scripts\pandapply.exe` sin activar el entorno. PandApply rechaza ejecutarse desde un Python compartido; también se puede instalar en un entorno aislado administrado por `pipx` o `uv`. Los datos guardados se conservan fuera del entorno virtual.
 
-`doctor` no modifica archivos. `setup` inicializa una base SQLite local y puede repetirse. Detecta una instalación existente de Hermes y completa las rutas de su entorno Python y Google Workspace cuando puede identificarlas; conserva los valores que ya configuraste. Los datos se guardan en `%LOCALAPPDATA%/PandApply` en Windows o en `$XDG_DATA_HOME/pandapply` (por defecto `~/.local/share/pandapply`) en Linux. No se necesitan credenciales para trabajar localmente.
+`doctor` no modifica archivos. `setup` abre el asistente en una terminal interactiva; `setup --wizard` lo fuerza y `setup --non-interactive` conserva el informe JSON para scripts. Inicializa una base SQLite local y puede repetirse. Detecta una instalación existente de Hermes y completa las rutas de su entorno Python y Google Workspace cuando puede identificarlas. Los datos se guardan en `%LOCALAPPDATA%/PandApply` en Windows o en `$XDG_DATA_HOME/pandapply` (por defecto `~/.local/share/pandapply`) en Linux. No se necesitan credenciales para trabajar localmente.
 
 Si Gmail y WhatsApp ya están configurados en Hermes, el setup informa de la autorización y sesión detectadas sin leer ni copiar sus secretos. La detección no comprueba OAuth ni una conexión activa y no habilita envíos. Respeta `HERMES_HOME` y el perfil activo; si encuentra varias instalaciones, pide especificar `--hermes-home`. También acepta `--hermes-root` y `--hermes-python` para instalaciones fuera de las rutas habituales. `pandapply setup --dry-run` muestra el diagnóstico sin guardar cambios. La detección desde un host Windows no inspecciona automáticamente instalaciones dentro de WSL o Docker.
 

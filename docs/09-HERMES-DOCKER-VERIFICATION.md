@@ -78,3 +78,9 @@ cuentas personales. Las ubicaciones se contrastaron con `hermes_constants.py`,
 de archivos, no validez de tokens ni conexión del gateway. No lee sus contenidos,
 no empareja WhatsApp y no inicia OAuth. Las rutas de sesión personalizadas y otros
 conectores Google pueden necesitar configuración manual.
+
+El asistente de instalación se comprobó además con una instalación desde cero en
+Windows (entorno virtual nuevo y descarga de dependencias) y con
+`scripts/easy_setup_smoke.py` en Linux dentro del contenedor sin red. La prueba
+Linux reutiliza el entorno del contenedor y comprueba el lanzador y la configuración
+guiada con un perfil ficticio; no prueba la descarga de dependencias en Linux.

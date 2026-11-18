@@ -1,0 +1,64 @@
+import importlib.util
+import subprocess
+import sys
+from pathlib import Path
+
+from pandapply.configuration import read_settings
+from pandapply.onboarding import run
+from pandapply.profiles import list_profiles
+from pandapply.storage import connect
+
+
+def no_hermes(**kwargs):
+    return dict.fromkeys(("executable", "home", "python", "workspace_script")) | {
+        "gmail": "not_detected", "whatsapp": "not_detected", "issues": []}
+
+
+def answers(monkeypatch, values):
+    replies = iter(values)
+    monkeypatch.setattr("builtins.input", lambda prompt: next(replies))
+
+
+def test_wizard_creates_profile_and_resumes_without_duplicate(tmp_path, monkeypatch):
+    monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
+    path = tmp_path / "pandapply.db"
+    answers(monkeypatch, ["1", "", "Backend", "UTC", "", "n"])
+    assert run(path) == 0
+    with connect(path) as db:
+        assert [p["name"] for p in list_profiles(db)] == ["Backend"]
+        assert read_settings(db, tmp_path / "config.json").dry_run
+    answers(monkeypatch, ["1", "", "1", "", "n"])
+    assert run(path) == 0
+    with connect(path) as db:
+        assert len(list_profiles(db)) == 1
+
+
+def test_wizard_cancel_and_incoming_runtime_do_not_fake_success(tmp_path, monkeypatch):
+    path = tmp_path / "pandapply.db"
+    answers(monkeypatch, ["2"])
+    assert run(path) == 1 and not path.exists()
+    monkeypatch.setattr("builtins.input", lambda prompt: (_ for _ in ()).throw(EOFError()))
+    assert run(path) == 130
+
+
+def test_bootstrap_installs_and_launches_using_only_its_virtualenv(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("pandapply_installer", Path(__file__).parents[1] / "install.py")
+    installer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(installer)
+    monkeypatch.setattr(installer, "__file__", str(tmp_path / "install.py"))
+    environment = tmp_path / ".venv"
+    python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    python.parent.mkdir(parents=True)
+    python.write_text("fixture", encoding="utf-8")
+    (environment / "pyvenv.cfg").write_text("fixture", encoding="utf-8")
+    calls = []
+
+    def execute(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(subprocess, "run", execute)
+    monkeypatch.setattr(sys, "argv", ["install.py"])
+    assert installer.main() == 0
+    assert calls == [[str(python), "-m", "pip", "install", "-e", str(tmp_path)],
+                     [str(python), "-m", "pandapply", "setup", "--wizard"]]
