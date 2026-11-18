@@ -36,6 +36,8 @@ SQLite se valida automáticamente durante el asistente (integridad, relaciones y
 
 Los filtros de ubicación e idioma requieren datos explícitos de la vacante (`locations` y `languages` como listas). Si esos datos faltan, la evaluación exige revisión manual en lugar de ignorar el filtro. Las ubicaciones se comparan por nombre normalizado; los idiomas usan códigos como `es` o `en`.
 
+**¿Qué es un perfil de búsqueda?** Es un grupo de preferencias guardadas: modalidad, ubicación, salario y otros filtros. Su nombre es una etiqueta que eliges, por ejemplo «Desarrollo remoto». Dentro puedes buscar varios **cargos**, como «Backend Developer» y «Python Developer», que compartirán esos filtros. Normalmente basta un perfil; crea otro cuando quieras preferencias distintas, por ejemplo para buscar consultoría presencial. La configuración o perfil de Hermes, por su parte, identifica las conexiones de Hermes que reutiliza PandApply.
+
 Puedes omitir Gmail y el CV y completar esos datos más adelante. Las credenciales permanecen en Hermes y los archivos originales de CV se conservan. La comprobación de Gmail no habilita respuestas ni envíos. Las integraciones externas son experimentales.
 
 Para volver al asistente sin reinstalar, ejecuta `.\install.cmd --configure-only` en Windows o `sh install.sh --configure-only` en Linux. Si interrumpes la configuración, se conserva lo que ya hayas guardado. Las instalaciones de Hermes dentro de WSL o Docker requieren ejecutar PandApply en ese mismo entorno o configurar el puente correspondiente; el instalador del host no las conecta automáticamente.

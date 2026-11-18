@@ -39,7 +39,10 @@ def number(label: str, default: int, minimum: int, maximum: int) -> int:
 
 def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
     settings = read_settings(db, config_path)
-    additional = ask("Otros perfiles que quieres crear, separados por comas (Enter para ninguno)")
+    print("Un perfil de búsqueda agrupa cargos que comparten salario, modalidad, ubicación y otros filtros.")
+    print("Ejemplo: perfil 'Desarrollo remoto'; cargos 'Backend Developer, Python Developer'.")
+    print("Puedes usar un solo perfil para varios cargos. Crea otro solo si necesitas preferencias diferentes.")
+    additional = ask("Otros perfiles de búsqueda que quieres crear (opcional, separados por comas; Enter para ninguno)")
     profiles = list_profiles(db)
     names = {p["name"].casefold() for p in profiles}
     for name in [name.strip() for name in additional.split(",") if name.strip()]:
@@ -52,16 +55,17 @@ def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
         print(f"{index}. {profile['name']}")
     default = ",".join(str(i) for i, p in enumerate(profiles, 1) if p["id"] in default_ids) or "1"
     while True:
-        chosen = ask("¿Qué perfiles quieres que busquen vacantes? Números separados por comas", default)
+        chosen = ask("¿Qué perfiles de búsqueda quieres usar? Números separados por comas", default)
         parts = [part.strip() for part in chosen.split(",")]
         if parts and all(p.isdigit() and 1 <= int(p) <= len(profiles) for p in parts):
             selected = [profiles[i - 1] for i in dict.fromkeys(int(p) for p in parts)]
             break
         print("Selecciona números de la lista.")
     for profile in selected:
-        print("Preferencias para " + profile["name"])
+        print("Perfil de búsqueda: " + profile["name"])
+        print("Ahora indica los cargos que quieres buscar con estas mismas preferencias.")
         preferences = dict(profile["preferences"])
-        for field, label, fallback in (("role_queries", "Cargos o títulos a buscar", profile["name"]),
+        for field, label, fallback in (("role_queries", "Cargos a buscar (ejemplo: Backend Developer, Python Developer)", profile["name"]),
                                        ("locations", "Países o ubicaciones", ""),
                                        ("languages", "Idiomas de las vacantes", "es,en"),
                                        ("must_have_skills", "Habilidades requeridas (filtro, no experiencia confirmada)", "")):
@@ -181,14 +185,17 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                 query = ask("Filtro de correo para el seguimiento Gmail", settings.gmail_query or "newer_than:7d")
                 patch_settings(db, config_path, {"gmail_query": query}, actor="cli")
                 print("Filtro guardado; el seguimiento automático no se activa en este paso.")
-            print("\n2. Tu perfil profesional")
+            print("\n2. Tus preferencias de búsqueda")
+            print("Las guardamos en un perfil de búsqueda: un grupo de preferencias para encontrar empleo.")
+            print("El nombre es una etiqueta que tú eliges, como 'Desarrollo remoto'. Después indicarás los cargos a buscar.")
+            print("Un solo perfil puede incluir varios cargos; normalmente basta con uno para empezar.")
             profiles = [p for p in list_profiles(db) if p["active"]]
             profile_id = None
             if profiles:
                 for index, profile in enumerate(profiles, 1):
                     print(f"{index}. {profile['name']}")
                 while profile_id is None:
-                    choice = ask("Elige tu perfil; 0 para crear otro", "1")
+                    choice = ask("Elige un perfil de búsqueda existente; 0 para crear otro", "1")
                     if choice == "0":
                         break
                     if choice.isdigit() and 1 <= int(choice) <= len(profiles):
@@ -197,7 +204,7 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                         print("Elige un número de la lista.")
             if profile_id is None:
                 while True:
-                    name = ask("Nombre del perfil (por ejemplo, Backend)", "Principal")
+                    name = ask("Nombre para estas preferencias (por ejemplo, Desarrollo remoto)", "Principal")
                     timezone = ask("Zona horaria IANA", os.environ.get("TZ", "UTC"))
                     try:
                         profile_id = add_profile(db, name, timezone, {})

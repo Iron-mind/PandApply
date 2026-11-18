@@ -11,6 +11,7 @@ No reducen el alcance aprobado ni convierten una prueba simulada en integración
 | Reutilizar Hermes | Detectar instalación, perfil activo, Gmail autorizado y sesión WhatsApp existentes | Detección local y comprobación opcional de identidad Gmail; no copiar tokens ni sesiones |
 | SQL comprobado | Crear/migrar SQLite y validar integridad, relaciones y escritura antes de finalizar | Implementado en el asistente; no requiere cliente SQLite externo |
 | Varios perfiles | Preguntar qué perfiles profesionales se buscarán y permitir crear varios | Selección persistida en `search_profile_ids` |
+| Claridad de perfiles y cargos | Explicar antes de preguntar: perfil = grupo de preferencias; cargos = títulos buscados dentro del grupo. Un perfil admite varios cargos y crear otros es opcional | Explicación y ejemplos en el asistente y README; no exigir un perfil por cargo |
 | Preferencias | Preguntar cargos, ubicaciones, idiomas, habilidades como filtros, modalidad y piso salarial | Guardadas por perfil; no se convierten en experiencia confirmada |
 | Cuotas | Preguntar cuántas vacantes llenar por día y distinguir ese cupo del volumen de evaluación | Cupo diario, resultados por búsqueda y frecuencia configurables; no habilitan envíos |
 | Gmail guiado | Verificar cuenta existente y pedir filtro de seguimiento; mostrar permisos o pasos pendientes | Cuenta/filtro configurables; activación automática, cursor completo y validación con cuenta real pendientes |
