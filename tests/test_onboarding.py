@@ -68,7 +68,7 @@ def test_bootstrap_installs_and_launches_using_only_its_virtualenv(tmp_path, mon
 def test_full_setup_saves_search_preferences_before_offering_dashboard(tmp_path, monkeypatch):
     monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
     answers(monkeypatch, ["1", "", "Backend", "UTC", "", "s", "QA", "1,2",
-                          "Backend Engineer", "Colombia", "es,en", "Python", "remote", "2000",
+                          "Backend Engineer", "Colombia", "es,en", "Python", "remote, hybrid y onsite", "2000",
                           "QA Engineer", "Colombia", "es", "Testing", "hybrid", "1500",
                           "3", "12", "120", "n", "s"])
     observed = []
@@ -80,6 +80,8 @@ def test_full_setup_saves_search_preferences_before_offering_dashboard(tmp_path,
             assert len(settings.search_profile_ids) == 2
             assert settings.max_results_per_run == 12 and settings.search_interval_minutes == 120
             assert not settings.auto_apply_enabled and not settings.search_enabled
+            profile = next(p for p in list_profiles(db) if p["name"] == "Backend")
+            assert profile["preferences"]["work_mode"] == ["remote", "hybrid", "onsite"]
             assert db.execute("SELECT count(*) FROM knowledge_claims").fetchone()[0] == 0
 
     monkeypatch.setattr("pandapply.onboarding.dashboard", panel)

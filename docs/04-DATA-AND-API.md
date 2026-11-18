@@ -17,6 +17,13 @@ El saludo piloto usa `event_outbox`, tipo `PILOT_INVITATION`, con intento previo
 `SENDING`, recibo `SENT` o resultado `UNKNOWN`. El payload de auditoría contiene
 el hash del destino, no el número. Un intento previo impide repetir el saludo.
 
+`preferences.work_mode` conserva el formato de texto para una modalidad y admite
+una lista para varias (`[remote, hybrid]`). `null` o la entrada `any` representan
+ausencia de restricción. El asistente y el panel aceptan separadores por coma y la
+conjunción «y», y normalizan remoto/híbrido/presencial. El evaluador aplica coincidencia
+con cualquiera de las modalidades seleccionadas. Si hay filtro y la modalidad de
+la vacante falta o es desconocida, exige revisión manual.
+
 ## 1. Estrategia de persistencia
 
 **SQLite** es la fuente de verdad transaccional para vacantes, postulaciones, ejecución, decisiones, deduplicación, correos y auditoría. **Markdown** almacena conocimiento profesional transparente y modificable. **Archivos PDF/DOCX** se leen como fuentes (originales inmutables); **PDF generados** son artefactos derivados. Configuración YAML local se valida con Pydantic.

@@ -184,9 +184,11 @@ def test_dashboard_can_create_profile_and_change_config_with_csrf(tmp_path):
     assert client.post(f"/profiles/{profile_id}/skills", data=skill, auth=auth,
                        headers=headers, follow_redirects=False).status_code == 303
     assert "Guardar la habilidad: Python" in client.get("/", auth=auth).text
-    preferences = {"csrf": csrf, "version": "1", "skills": "Python, SQL", "work_mode": "remote", "salary": "2000"}
+    preferences = {"csrf": csrf, "version": "1", "skills": "Python, SQL", "work_mode": "remote, hybrid", "salary": "2000"}
     route = f"/profiles/{profile_id}/preferences"
     assert client.post(route, data=preferences, auth=auth, headers=headers, follow_redirects=False).status_code == 303
+    assert client.get("/api/v1/profiles", auth=auth).json()[0]["preferences"]["work_mode"] == ["remote", "hybrid"]
+    assert "value='remote, hybrid'" in client.get("/", auth=auth).text
     assert client.post(route, data=preferences, auth=auth, headers=headers, follow_redirects=False).status_code == 400
     route = f"/profiles/{profile_id}/fixture-discovery"
     assert client.post(route, data={"csrf": csrf}, auth=auth, headers=headers, follow_redirects=False).status_code == 303

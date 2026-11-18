@@ -11,10 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from pandapply.domain import Job, canonical_url
 from pandapply.storage import now, save_job
+from pandapply.work_modes import parse_work_modes, work_mode_preference
 
 
 class Candidate(BaseModel):
@@ -40,10 +41,15 @@ class ProfileCriteria(BaseModel):
     nice_to_have_skills: list[str] = Field(default_factory=list)
     confirmed_claims: list[str] = Field(default_factory=list)
     salary_min_usd_month: float | None = Field(default=None, ge=0)
-    work_mode: str | None = None
+    work_mode: str | list[str] | None = None
     excluded_companies: list[str] = Field(default_factory=list)
     locations: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)
+
+    @field_validator("work_mode")
+    @classmethod
+    def valid_work_modes(cls, value):
+        return work_mode_preference(value)
 
 
 @dataclass(frozen=True)
@@ -114,8 +120,15 @@ def evaluate(criteria: ProfileCriteria, job: Candidate, *, min_score: float = 0.
     if criteria.work_mode:
         if not job.work_mode:
             missing.append("Modalidad no especificada")
-        elif job.work_mode.casefold() != criteria.work_mode.casefold():
-            reasons.append("Modalidad incompatible")
+        else:
+            try:
+                actual_modes = parse_work_modes(job.work_mode)
+                if not actual_modes:
+                    missing.append("Modalidad de la vacante no especificada")
+                elif not set(actual_modes) & set(parse_work_modes(criteria.work_mode)):
+                    reasons.append("Modalidad incompatible")
+            except ValueError:
+                missing.append("Modalidad de la vacante no reconocida")
     if reasons:
         return Match("SKIPPED_INELIGIBLE", 0.0, tuple(reasons))
     if job.form and job.form.get("captcha"):

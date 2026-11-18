@@ -30,6 +30,7 @@ from pandapply.mail_send import send_approved
 from pandapply.memory import propose_skill
 from pandapply.profiles import add_profile, edit_profile, list_profiles
 from pandapply.storage import connect
+from pandapply.work_modes import work_mode_label, work_mode_preference
 
 security = HTTPBasic(auto_error=False)
 
@@ -313,7 +314,7 @@ def create_app(database: Path, token: str) -> FastAPI:
             preferences = profile["preferences"]
             skills = preferences.get("must_have_skills", [])
             skills_text = ", ".join(value for value in skills if isinstance(value, str)) if isinstance(skills, list) else ""
-            mode = preferences.get("work_mode", "")
+            mode = work_mode_label(preferences.get("work_mode"))
             salary = preferences.get("salary_min_usd_month", "")
             profile_items.append(
                 f"<li>{html.escape(profile['name'])}<form method='post' action='/profiles/{profile_id}/skills'>"
@@ -325,8 +326,8 @@ def create_app(database: Path, token: str) -> FastAPI:
                 f"<input type='hidden' name='version' value='{profile['version']}'>"
                 f"<label>Habilidades obligatorias, separadas por comas <input name='skills' "
                 f"value='{html.escape(skills_text, quote=True)}'></label> "
-                f"<label>Modalidad <input name='work_mode' value='{html.escape(str(mode), quote=True)}' "
-                "placeholder='remote, hybrid, onsite'></label> "
+                f"<label>Modalidades (varias separadas por comas; any = todas) <input name='work_mode' value='{html.escape(mode, quote=True)}' "
+                "placeholder='remote, hybrid'></label> "
                 f"<label>Salario mínimo USD/mes <input name='salary' type='number' min='0' step='0.01' "
                 f"value='{html.escape(str(salary), quote=True)}'></label> "
                 "<button>Guardar preferencias</button></form>"
@@ -490,9 +491,7 @@ def create_app(database: Path, token: str) -> FastAPI:
                                         work_mode: Annotated[str, Form()] = "", salary: Annotated[str, Form()] = ""):
         check_form(request, csrf)
         try:
-            mode = work_mode.strip().lower()
-            if mode and mode not in ("remote", "hybrid", "onsite"):
-                raise ValueError("Use remote, hybrid or onsite")
+            mode = work_mode_preference(work_mode)
             parsed_salary = float(salary) if salary.strip() else None
             if parsed_salary is not None and not 0 <= parsed_salary <= 10_000_000:
                 raise ValueError("Invalid salary")

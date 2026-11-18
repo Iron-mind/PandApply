@@ -14,6 +14,27 @@ from pandapply.discovery import (
 from pandapply.memory import decide_skill, propose_skill
 from pandapply.profiles import add_profile
 from pandapply.storage import connect, migrate
+from pandapply.work_modes import parse_work_modes
+
+
+def test_multiple_work_modes_accept_any_selected_mode_and_preserve_legacy_profiles():
+    criteria = ProfileCriteria(work_mode=["remote", "hybrid"], must_have_skills=["Python"],
+                               confirmed_claims=["Python"])
+    job = Candidate(title="Engineer", company="Demo", url="https://example.test/job", skills=["Python"])
+    assert evaluate(criteria, job.model_copy(update={"work_mode": "remote"})).status == "MATCHED"
+    assert evaluate(criteria, job.model_copy(update={"work_mode": "hybrid"})).status == "MATCHED"
+    assert evaluate(criteria, job.model_copy(update={"work_mode": "onsite"})).status == "SKIPPED_INELIGIBLE"
+    assert evaluate(criteria, job).status == "MANUAL_REVIEW"
+    assert evaluate(criteria, job.model_copy(update={"work_mode": "unknown"})).status == "MANUAL_REVIEW"
+    unrestricted = ProfileCriteria(work_mode="any", must_have_skills=["Python"], confirmed_claims=["Python"])
+    assert evaluate(unrestricted, job).status == "MATCHED"
+    assert ProfileCriteria(work_mode="remote").work_mode == "remote"
+    assert parse_work_modes("remote, hybrid y onsite") == ["remote", "hybrid", "onsite"]
+    assert parse_work_modes("remoto, híbrido y presencial") == ["remote", "hybrid", "onsite"]
+    with pytest.raises(ValueError):
+        parse_work_modes("remote, invalid")
+    with pytest.raises(ValueError):
+        parse_work_modes("any, remote")
 
 
 def test_hard_filters_and_missing_information():

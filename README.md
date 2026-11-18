@@ -40,6 +40,8 @@ Los filtros de ubicación e idioma requieren datos explícitos de la vacante (`l
 
 La zona horaria acepta nombres de ciudades como `America/Bogota` y desfases fijos de horas completas como `UTC-5` o `UTC+3`. Un desfase fijo no cambia en verano/invierno; utiliza una ciudad para seguir esos cambios o para zonas con desfases de media hora. Si te equivocas, el asistente vuelve a pedir únicamente la zona horaria.
 
+Puedes seleccionar varias modalidades: `remote, hybrid`, `remote, hybrid y onsite` o `remoto, híbrido y presencial`. Una vacante cumple el filtro si coincide con cualquiera de las elegidas. `any` acepta todas y se usa sola. Las mismas opciones funcionan en el panel local.
+
 Puedes omitir Gmail y el CV y completar esos datos más adelante. Las credenciales permanecen en Hermes y los archivos originales de CV se conservan. La comprobación de Gmail no habilita respuestas ni envíos. Las integraciones externas son experimentales.
 
 Para volver al asistente sin reinstalar, ejecuta `.\install.cmd --configure-only` en Windows o `sh install.sh --configure-only` en Linux. Si interrumpes la configuración, se conserva lo que ya hayas guardado. Las instalaciones de Hermes dentro de WSL o Docker requieren ejecutar PandApply en ese mismo entorno o configurar el puente correspondiente; el instalador del host no las conecta automáticamente.

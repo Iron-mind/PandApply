@@ -13,6 +13,7 @@ from pandapply.profiles import add_profile, edit_profile, import_cv, list_profil
 from pandapply.setup_checks import check_database
 from pandapply.storage import connect, migrate
 from pandapply.timezones import normalize_timezone
+from pandapply.work_modes import work_mode_label, work_mode_preference
 
 
 def ask(label: str, default: str = "") -> str:
@@ -74,11 +75,13 @@ def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
             value = ask(label + ", separados por comas", ",".join(current) if current else fallback)
             preferences[field] = list(dict.fromkeys(p.strip() for p in value.split(",") if p.strip()))
         while True:
-            mode = ask("Modalidad: remote, hybrid, onsite o any", preferences.get("work_mode") or "remote")
-            if mode in ("remote", "hybrid", "onsite", "any"):
-                preferences["work_mode"] = None if mode == "any" else mode
+            mode = ask("Modalidades: remote, hybrid, onsite (puedes elegir varias separadas por comas) o any",
+                       work_mode_label(preferences.get("work_mode", "remote")))
+            try:
+                preferences["work_mode"] = work_mode_preference(mode)
                 break
-            print("Elige remote, hybrid, onsite o any.")
+            except ValueError as exc:
+                print(str(exc))
         preferences["salary_min_usd_month"] = number("Salario mínimo USD/mes (0 = sin filtro)",
                                                      int(preferences.get("salary_min_usd_month") or 0), 0, 1_000_000) or None
         edit_profile(db, profile["id"], preferences=preferences, expected_version=profile["version"])
