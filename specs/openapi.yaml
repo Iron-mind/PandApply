@@ -1,0 +1,321 @@
+openapi: 3.1.0
+info:
+  title: PandApply Local API
+  version: 1.0.0-design
+  description: |
+    Contrato de referencia para Codex; API local de una sola instalación.
+    Acciones externas requieren decisiones de usuario y permisos del core.
+servers:
+  - url: http://127.0.0.1:8765/api/v1
+security:
+  - LocalToken: []
+components:
+  securitySchemes:
+    LocalToken:
+      type: http
+      scheme: bearer
+      description: Token local aleatorio, nunca expuesto al browser en texto sin protección.
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        correlation_id: {type: [string, 'null']}
+    Health:
+      type: object
+      required: [status, components]
+      properties:
+        status: {type: string, enum: [healthy, degraded, unavailable]}
+        components: {type: object, additionalProperties: {type: string}}
+    Profile:
+      type: object
+      required: [id, name]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        preferences: {type: object, additionalProperties: true}
+        active: {type: boolean}
+        version: {type: integer}
+    Job:
+      type: object
+      required: [id, title, company_name, source_url]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        company_name: {type: string}
+        location: {type: [string, 'null']}
+        source_url: {type: string, format: uri}
+        discovered_at: {type: string, format: date-time}
+    Application:
+      type: object
+      required: [id, job_posting_id, profile_id, status, phase]
+      properties:
+        id: {type: string}
+        job_posting_id: {type: string}
+        profile_id: {type: string}
+        status: {type: string}
+        phase: {type: string}
+        match_score: {type: [number, 'null'], minimum: 0, maximum: 1}
+        policy_version: {type: [string, 'null']}
+        receipt_uri: {type: [string, 'null']}
+        applied_at: {type: [string, 'null'], format: date-time}
+    Decision:
+      type: object
+      required: [id, decision_type, status, related_entity_id, created_at]
+      properties:
+        id: {type: string}
+        decision_type: {type: string}
+        status: {type: string, enum: [PENDING, APPROVED, REJECTED, EXPIRED, CANCELLED]}
+        related_entity_id: {type: string}
+        question: {type: [string, 'null']}
+        options: {type: array, items: {type: string}}
+        created_at: {type: string, format: date-time}
+    DecisionResponse:
+      type: object
+      required: [action]
+      properties:
+        action: {type: string, enum: [approve, reject, select, reply_text]}
+        selected_option: {type: [string, 'null']}
+        text: {type: [string, 'null']}
+    RunRequest:
+      type: object
+      properties:
+        profile_id: {type: [string, 'null']}
+        dry_run: {type: boolean, default: true}
+    RunResponse:
+      type: object
+      required: [run_id, status]
+      properties:
+        run_id: {type: string}
+        status: {type: string, enum: [queued, running, completed, blocked, failed]}
+    PaginatedApplications:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Application'}
+        total: {type: integer}
+        limit: {type: integer}
+        offset: {type: integer}
+    ConfigPatch:
+      type: object
+      additionalProperties: true
+      description: Sparse patch validado con modelo de configuración, sin secretos.
+    Event:
+      type: object
+      required: [id, event_type, timestamp]
+      properties:
+        id: {type: string}
+        event_type: {type: string}
+        application_id: {type: [string, 'null']}
+        timestamp: {type: string, format: date-time}
+        payload: {type: object, additionalProperties: true}
+    Connector:
+      type: object
+      required: [id, status]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [healthy, degraded, disconnected, not_configured]}
+        detail: {type: [string, 'null']}
+    PauseRequest:
+      type: object
+      properties:
+        reason: {type: string}
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        '200':
+          description: Salud local
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Health'}
+  /config:
+    get:
+      operationId: getConfig
+      responses:
+        '200':
+          description: Configuración redaccionada
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+    patch:
+      operationId: patchConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConfigPatch'}
+      responses:
+        '200': {description: Cambios validados y auditados}
+        '400': {description: Error de configuración}
+  /profiles:
+    get:
+      operationId: listProfiles
+      responses:
+        '200':
+          description: Perfiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Profile'}
+    post:
+      operationId: createProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Profile'}
+      responses:
+        '201': {description: Perfil creado}
+  /jobs:
+    get:
+      operationId: listJobs
+      parameters:
+        - {name: profile_id, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Vacantes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Job'}
+  /applications:
+    get:
+      operationId: listApplications
+      parameters:
+        - {name: status, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, default: 30, minimum: 1, maximum: 100}}
+        - {name: offset, in: query, schema: {type: integer, default: 0, minimum: 0}}
+      responses:
+        '200':
+          description: Aplicaciones paginadas
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaginatedApplications'}
+  /applications/{id}:
+    get:
+      operationId: getApplication
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Detalle
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Application'}
+        '404': {description: No encontrada}
+  /applications/{id}/reconcile:
+    post:
+      operationId: reconcileApplication
+      description: Busca evidencia externa; nunca ejecuta de nuevo el submit.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      responses:
+        '202': {description: Conciliación programada}
+        '409': {description: Transición incompatible}
+  /runs/discovery:
+    post:
+      operationId: startDiscovery
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RunRequest'}
+      responses:
+        '202':
+          description: Ejecución aceptada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RunResponse'}
+  /runs/mail:
+    post:
+      operationId: startMailMonitor
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RunRequest'}
+      responses:
+        '202':
+          description: Ejecución aceptada
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RunResponse'}
+  /decisions:
+    get:
+      operationId: listDecisions
+      parameters:
+        - {name: status, in: query, schema: {type: string, default: PENDING}}
+      responses:
+        '200':
+          description: Decisiones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Decision'}
+  /decisions/{id}/respond:
+    post:
+      operationId: respondToDecision
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DecisionResponse'}
+      responses:
+        '200': {description: Decisión procesada y auditada}
+        '401': {description: Maestro sin autorización}
+        '409': {description: Ya respondida o modificada}
+  /events:
+    get:
+      operationId: listEvents
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 30, minimum: 1, maximum: 100}}
+      responses:
+        '200':
+          description: Historial
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Event'}
+  /connectors:
+    get:
+      operationId: listConnectors
+      responses:
+        '200':
+          description: Conectores y salud
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Connector'}
+  /system/pause:
+    post:
+      operationId: pauseAutomation
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PauseRequest'}
+      responses:
+        '200': {description: Automatización pausada}
+  /system/resume:
+    post:
+      operationId: resumeAutomation
+      responses:
+        '200': {description: Automatización habilitada con gates todavía activos}
