@@ -1,0 +1,66 @@
+{
+  "notice": "Datos completamente ficticios. No contactar estas URLs de prueba.",
+  "profile": {
+    "id": "backend-sample",
+    "role_queries": ["Backend Developer", "Node.js Engineer"],
+    "must_have_skills": ["Node.js"],
+    "confirmed_claims": ["Node.js", "NestJS", "PostgreSQL"],
+    "salary_min_usd_month": 2000,
+    "work_mode": "remote"
+  },
+  "jobs": [
+    {
+      "case": "A_OK",
+      "ats_requisition_id": "DEMO-001",
+      "company": "Acme Demo Systems",
+      "title": "Remote Backend Developer",
+      "url": "https://jobs.example.test/job/DEMO-001",
+      "skills": ["Node.js", "PostgreSQL"],
+      "work_mode": "remote",
+      "salary_usd_month": 2600,
+      "site_policy": "ALLOWED_SANDBOX",
+      "form": {"fields": ["name", "email", "cv_pdf"], "captcha": false},
+      "expected": "SUBMITTED_WITH_SANDBOX_RECEIPT"
+    },
+    {
+      "case": "B_DUPLICATE",
+      "ats_requisition_id": "DEMO-001",
+      "company": "Acme Demo Systems",
+      "title": "Backend Developer (remote)",
+      "url": "https://jobs.example.test/job/DEMO-001?tracking=abc",
+      "expected": "SKIPPED_DUPLICATE"
+    },
+    {
+      "case": "C_SALARY",
+      "ats_requisition_id": "DEMO-002",
+      "company": "Placeholder Recruiting",
+      "title": "Backend Node.js",
+      "url": "https://jobs.example.test/job/DEMO-002",
+      "work_mode": "remote",
+      "salary_usd_month": 1500,
+      "expected": "SKIPPED_INELIGIBLE"
+    },
+    {
+      "case": "D_CAPTCHA",
+      "ats_requisition_id": "DEMO-003",
+      "company": "Example Consulting",
+      "title": "Backend Node.js",
+      "url": "https://jobs.example.test/job/DEMO-003",
+      "work_mode": "remote",
+      "salary_usd_month": 3000,
+      "form": {"fields": ["name", "cv_pdf"], "captcha": true},
+      "expected": "MANUAL_REVIEW"
+    },
+    {
+      "case": "E_UNKNOWN_SUBMIT",
+      "ats_requisition_id": "DEMO-004",
+      "company": "Example Cloud",
+      "title": "Node.js Developer",
+      "url": "https://jobs.example.test/job/DEMO-004",
+      "work_mode": "remote",
+      "salary_usd_month": 3400,
+      "test_failure": "after_submit_click_before_receipt",
+      "expected": "SUBMISSION_UNKNOWN_NO_AUTORETRY"
+    }
+  ]
+}

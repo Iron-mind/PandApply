@@ -1,0 +1,69 @@
+# PLANTILLA DE DISEÑO — PandApply aún no está implementado.
+# Defaults propuestos, modificables por el maestro en onboarding.
+version: 1
+runtime:
+  kind: hermes            # openclaw previsto en otra versión
+  check_capabilities: true
+master:
+  locale: es-CO
+  timezone: America/Bogota
+  owner_principal: null   # se vincula tras verificar canal maestro
+profiles:
+  - id: backend
+    name: Backend Developer
+    role_queries: ["Backend Developer", "Node.js Backend Engineer"]
+    must_have_skills: [Node.js]
+    nice_to_have_skills: [NestJS, PostgreSQL]
+    min_verified_years: null
+    languages: [es, en]
+    locations: [Remote]
+    work_modes: [remote]
+    min_salary:
+      amount: 2000
+      currency: USD
+      period: month
+    excluded_companies: []
+    cv_directory: /USER/CHOOSES/PATH
+search:
+  provider: google_browser
+  fallback_provider: null    # configurar uno autorizado si necesario
+  max_results_per_run: 15
+  schedule: "every 6h"
+  enabled: false            # se activa tras wizard y dry-run
+browser:
+  mode: hermes_managed      # hermes_cdp | hermes_real_profile | playwright_extension | chrome_devtools_mcp
+  cdp_endpoint: null        # solo loopback; no exponer en red
+  require_consent_for_existing_profile: true
+gmail:
+  enabled: false
+  adapter: hermes_google_workspace
+  poll_schedule: "every 20m"
+  account: null
+  reply_mode: master_approval_only
+  notification_policy: important_only
+channels:
+  cli: true
+  web:
+    enabled: true
+    bind_host: 127.0.0.1
+    port: 8765
+  whatsapp:
+    enabled: false
+    mode: self-chat
+    allowed_principals: []
+autonomy:
+  auto_apply_enabled: false  # habilitar manualmente con consentimiento explícito
+  dry_run: true              # desactivar solo tras test de conexión y políticas
+  min_match_score: 0.80
+  max_confirmed_submissions_per_day: 5
+  allowed_submission_domains: []
+  forbidden_submission_domains: [linkedin.com, indeed.com]
+  require_verified_receipt: true
+  require_site_policy_check: true
+  never_automate_captcha: true
+  emails_require_master_approval: true
+  memory_requires_master_approval: true
+storage:
+  data_dir: null             # autodetectar XDG / LOCALAPPDATA
+  retention_days: 365
+  capture_screenshots: false

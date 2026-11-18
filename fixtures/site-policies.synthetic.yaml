@@ -1,0 +1,23 @@
+# Datos ficticios para las pruebas. No equivalen a términos vigentes de terceros.
+version: 1
+rules:
+  - host: jobs.example.test
+    discovery: ALLOWED
+    read: ALLOWED
+    fill: ALLOWED
+    submit: ALLOWED
+    reason: "ATS sandbox de pruebas, no corresponde a portal real"
+  - host: linkedin.com
+    include_subdomains: true
+    submit: BLOCKED
+    reason: "Respetar restricciones documentadas de automatización no autorizada"
+  - host: indeed.com
+    include_subdomains: true
+    submit: BLOCKED
+    reason: "Respetar restricciones documentadas de Indeed Apply"
+  - host: '*'
+    discovery: UNKNOWN
+    read: UNKNOWN
+    fill: MANUAL_ONLY
+    submit: UNKNOWN
+    reason: "Se requiere validación de política del dominio antes de automatizar"
