@@ -22,6 +22,7 @@ No reducen el alcance aprobado ni convierten una prueba simulada en integración
 | Gmail guiado | Verificar cuenta existente y pedir filtro de seguimiento; mostrar permisos o pasos pendientes | Cuenta, filtro, volumen, intervalo y modo de permisos configurables; activación automática, cursor completo y validación con cuenta real pendientes |
 | Panel al final | La pregunta de abrir el panel es el último paso, después de configurar y mostrar pendientes | Implementado; abrir el servidor bloquea la terminal hasta Ctrl+C |
 | Login visible | Enlace a un formulario de usuario y contraseña, sesión y cierre de sesión | Implementado; credenciales temporales en la terminal |
+| Rediseño del panel | Aplicar el HTML de referencia aportado por el propietario, conservando funciones existentes | Barra lateral, tarjetas, perfiles con detalle y vistas conectadas a SQLite; formularios nativos protegidos y recursos locales, sin datos de muestra incrustados |
 | Piloto WhatsApp | Al terminar, saludar al propietario y pedir autorización para la primera búsqueda | Saludo optativo con destino confirmado e intento persistido; falta recepción autenticada de respuesta e inicio de búsqueda real |
 | Primera búsqueda | Una respuesta afirmativa del propietario, vinculada al piloto, inicia una sola búsqueda con los perfiles/filtros elegidos; no autoriza postulaciones | Pendiente de adaptador de recepción y proveedor de búsqueda real autorizado |
 | Documentación inicial | Getting started para Hermes y OpenClaw incoming | README actualizado; OpenClaw no disponible todavía |

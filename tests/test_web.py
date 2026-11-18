@@ -10,6 +10,35 @@ from pandapply.storage import connect, migrate, save_job
 from pandapply.web import create_app
 
 
+def test_redesigned_panel_uses_live_profiles_navigation_and_local_assets(tmp_path):
+    path = tmp_path / "data.db"
+    migrate(path)
+    with connect(path) as db:
+        add_profile(db, "Backend", "UTC", {"must_have_skills": ["Python"]})
+        chosen = add_profile(db, "QA <seguro>", "UTC", {"work_mode": ["remote", "hybrid"]})
+    client = TestClient(create_app(path, "secret"), base_url="http://localhost")
+    auth = ("pandapply", "secret")
+    page = client.get(f"/?view=perfiles&profile={chosen}", auth=auth)
+    assert page.status_code == 200
+    assert "class='shell'" in page.text and "class='sidebar'" in page.text
+    assert "class='view active' id='view-perfiles'" in page.text
+    assert "QA &lt;seguro&gt;" in page.text and "<seguro>" not in page.text
+    assert "Remoto, Híbrido" in page.text
+    assert "VISTA PREVIA" not in page.text and "onclick=" not in page.text
+    assert "class='nav-count'>2</span>" in page.text
+    search = client.get("/", params={"view": "perfiles", "q": "<script>alert(1)</script>"}, auth=auth)
+    assert "<script>" not in search.text and "No se encontraron perfiles" in search.text
+    assert client.get("/?view=unknown", auth=auth).status_code == 200
+    stylesheet = client.get("/assets/panel.css")
+    assert stylesheet.status_code == 200 and "text/css" in stylesheet.headers["content-type"]
+    assert "--purple:#6958f5" in stylesheet.text
+    assert "fonts.googleapis.com" not in page.text + stylesheet.text
+    font = client.get("/assets/fonts/dm-sans.woff2")
+    assert font.status_code == 200 and font.content.startswith(b"wOF2")
+    assert client.get("/assets/fonts/not-a-font").status_code == 404
+    assert "style-src 'self'" in page.headers["content-security-policy"]
+
+
 def test_login_form_session_logout_and_api_boundaries(tmp_path):
     path = tmp_path / "data.db"
     migrate(path)

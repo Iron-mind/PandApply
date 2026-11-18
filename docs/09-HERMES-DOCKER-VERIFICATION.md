@@ -115,3 +115,8 @@ usa Hermes para enviar al ATS local y verifica un recibo `sandbox-`. Su resultad
 `sandbox_verified` se limita a ese formulario. Las pruebas CDP usan un servidor
 HTTP local simulado, comprueban `/json/version` y rechazan redirecciones o destinos
 remotos; no prueban control de un navegador personal real.
+
+`scripts/hermes_panel_smoke.py` comprueba el panel rediseñado con Chromium mediante
+Hermes: login, navegación, creación, edición y eliminación de un perfil ficticio,
+persistencia en SQLite y vista móvil sin desbordamiento horizontal. Las capturas
+usan exclusivamente datos sintéticos y pueden guardarse en `/artifacts` del contenedor.

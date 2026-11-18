@@ -121,6 +121,8 @@ Con al menos una habilidad verificada, `pandapply profiles generate-cv ID_DEL_PE
 
 Si tenías una pestaña abierta antes de reiniciar el panel, vuelve a abrir `/login` y usa la nueva contraseña de la terminal. Un formulario desactualizado muestra una página de recuperación; su enlace abre un formulario nuevo y no repite la operación anterior. Tras actualizar el código, reinicia el panel para que cargue la corrección.
 
+El panel incorpora el rediseño HTML aportado por el propietario: navegación lateral, resumen, perfiles con detalle y búsqueda, vacantes, decisiones, correo y configuración. Los contadores y formularios usan los datos locales guardados. Los estilos, iconos y fuentes se sirven desde PandApply y la interfaz se adapta a escritorio y móvil.
+
 También puedes consultar `pandapply decisions list` y responder con `pandapply decisions respond ID_DE_LA_DECISIÓN approve` (o `reject`). Las decisiones anteriores limitadas al canal CLI siguen restringidas a ese canal.
 
 ## Demo integral simulada
