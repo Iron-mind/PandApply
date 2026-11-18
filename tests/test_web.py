@@ -10,13 +10,64 @@ from pandapply.storage import connect, migrate, save_job
 from pandapply.web import create_app
 
 
+def test_login_form_session_logout_and_api_boundaries(tmp_path):
+    path = tmp_path / "data.db"
+    migrate(path)
+    client = TestClient(create_app(path, "secret"), base_url="http://localhost")
+    page = client.get("/")
+    assert page.status_code == 200 and page.url.path == "/login"
+    assert "Iniciar sesión" in page.text and "type='password'" in page.text
+    assert "WWW-Authenticate" not in page.headers and "secret" not in page.text
+    csrf = re.search(r"name='csrf' value='([^']+)'", page.text).group(1)
+    data = {"username": "pandapply", "password": "secret", "csrf": csrf}
+    origin = {"Origin": "http://localhost"}
+    assert client.post("/login", data=data).status_code == 403
+    assert client.post("/login", data=data, headers={"Origin": "https://evil.test"}).status_code == 403
+    bad = client.post("/login", data={**data, "password": "contraseña inválida"}, headers=origin)
+    assert bad.status_code == 401 and "incorrectos" in bad.text
+    assert "WWW-Authenticate" not in bad.headers
+    response = client.post("/login", data=data, headers=origin, follow_redirects=False)
+    assert response.status_code == 303
+    cookie = response.headers["set-cookie"]
+    assert "HttpOnly" in cookie and "SameSite=strict" in cookie and "secret" not in cookie
+    assert "Cerrar sesión" in client.get("/").text
+    assert client.get("/api/v1/profiles").status_code == 200
+    assert client.patch("/api/v1/config", json={"locale": "es-CO"}).status_code == 401
+    assert client.post("/profiles", data={"csrf": csrf, "name": "Backend", "timezone": "UTC"},
+                       headers=origin, follow_redirects=False).status_code == 303
+    assert client.post("/logout", data={"csrf": csrf}, headers={"Origin": "https://evil.test"}).status_code == 403
+    old_cookie = client.cookies.get("pandapply_session")
+    assert client.post("/logout", data={"csrf": csrf}, headers=origin, follow_redirects=False).status_code == 303
+    assert client.get("/api/v1/profiles", headers={"Cookie": f"pandapply_session={old_cookie}"}).status_code == 401
+
+
+def test_browser_sessions_expire_and_do_not_survive_server_restart(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    clock = [100.0]
+    monkeypatch.setattr("pandapply.web.time", SimpleNamespace(monotonic=lambda: clock[0]))
+    path = tmp_path / "data.db"
+    migrate(path)
+    client = TestClient(create_app(path, "secret"), base_url="http://localhost")
+    page = client.get("/login")
+    csrf = re.search(r"name='csrf' value='([^']+)'", page.text).group(1)
+    client.post("/login", data={"csrf": csrf, "username": "pandapply", "password": "secret"},
+                headers={"Origin": "http://localhost"}, follow_redirects=False)
+    cookie = {"Cookie": "pandapply_session=" + client.cookies.get("pandapply_session")}
+    restarted = TestClient(create_app(path, "new-secret"), base_url="http://localhost")
+    assert restarted.get("/api/v1/profiles", headers=cookie).status_code == 401
+    clock[0] += 12 * 60 * 60 + 1
+    assert client.get("/api/v1/profiles", headers=cookie).status_code == 401
+
+
 def test_dashboard_requires_auth_and_escapes_profile_names(tmp_path):
     path = tmp_path / "data.db"
     migrate(path)
     with connect(path) as db:
         add_profile(db, "<script>alert(1)</script>", "UTC", {})
     client = TestClient(create_app(path, "secret"), base_url="http://localhost")
-    assert client.get("/").status_code == 401
+    unauthenticated = client.get("/", follow_redirects=False)
+    assert unauthenticated.status_code == 303 and unauthenticated.headers["location"] == "/login"
     assert client.get("/api/v1/profiles", auth=("pandapply", "wrong")).status_code == 401
     result = client.get("/", auth=("pandapply", "secret"))
     assert result.status_code == 200

@@ -4,6 +4,7 @@ import html
 import json
 import secrets
 import sqlite3
+import time
 from contextlib import closing
 from importlib.resources import as_file, files
 from pathlib import Path
@@ -51,17 +52,32 @@ def create_app(database: Path, token: str) -> FastAPI:
     app = FastAPI(title="PandApply local", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1"])
     csrf_secret = secrets.token_urlsafe(32)
+    sessions: dict[str, float] = {}
+    session_lifetime = 12 * 60 * 60
+
+    def equal(first: str, second: str) -> bool:
+        return secrets.compare_digest(first.encode("utf-8"), second.encode("utf-8"))
+
+    def has_session(request: Request) -> bool:
+        session = request.cookies.get("pandapply_session", "")
+        expires = sessions.get(session, 0)
+        if expires <= time.monotonic():
+            sessions.pop(session, None)
+            return False
+        return True
 
     def authorized(request: Request, credentials: Annotated[HTTPBasicCredentials | None, Depends(security)]) -> None:
         header = request.headers.get("authorization", "")
         supplied = header[7:] if header.startswith("Bearer ") else ""
-        basic_ok = bool(credentials and secrets.compare_digest(credentials.username, "pandapply")
-                        and secrets.compare_digest(credentials.password, token))
+        basic_ok = bool(credentials and equal(credentials.username, "pandapply")
+                        and equal(credentials.password, token))
         try:
             bearer_ok = bool(supplied and secrets.compare_digest(supplied, token))
         except TypeError:
             bearer_ok = False
-        if not (basic_ok or bearer_ok):
+        if not (basic_ok or bearer_ok or has_session(request)):
+            if request.method == "GET" and not request.url.path.startswith("/api/"):
+                raise HTTPException(status_code=303, headers={"Location": "/login"})
             raise HTTPException(status_code=401, detail="Unauthorized",
                                 headers={"WWW-Authenticate": "Basic, Bearer"})
 
@@ -89,6 +105,63 @@ def create_app(database: Path, token: str) -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"
         response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
+    def login_page(*, invalid: bool = False) -> HTMLResponse:
+        error = "<p role='alert'>Usuario o contraseña incorrectos.</p>" if invalid else ""
+        return HTMLResponse(
+            "<!doctype html><html lang='es'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+            "<title>Iniciar sesión — PandApply</title><style>"
+            "body{font-family:system-ui,sans-serif;background:#f3f5f7;color:#18232d;margin:0;"
+            "min-height:100vh;display:grid;place-items:center}main{background:white;padding:2rem;"
+            "border-radius:1rem;width:min(24rem,80vw);box-shadow:0 8px 32px #18232d15}"
+            "h1{margin-top:0}label{display:block;margin:1rem 0}input{box-sizing:border-box;display:block;"
+            "width:100%;padding:.7rem;margin-top:.4rem;border:1px solid #aab4bd;border-radius:.4rem}"
+            "button{width:100%;padding:.8rem;background:#185c47;color:white;border:0;"
+            "border-radius:.4rem;font:inherit;cursor:pointer}[role=alert]{color:#a12020}</style></head>"
+            "<body><main><h1>PandApply</h1><h2>Iniciar sesión</h2>"
+            "<p>Usa la contraseña que aparece en la terminal donde abriste el panel.</p>"
+            + error + "<form method='post' action='/login'>"
+            f"<input type='hidden' name='csrf' value='{csrf_secret}'>"
+            "<label>Usuario<input name='username' value='pandapply' autocomplete='username' required></label>"
+            "<label>Contraseña<input name='password' type='password' autocomplete='current-password' required autofocus></label>"
+            "<button>Entrar al panel</button></form>"
+            "<p>Si reinicias PandApply, usa la nueva contraseña de la terminal.</p></main></body></html>",
+            status_code=401 if invalid else 200)
+
+    @app.get("/login", response_class=HTMLResponse)
+    def login(request: Request):
+        if has_session(request):
+            return RedirectResponse(url="/", status_code=303)
+        return login_page()
+
+    @app.post("/login")
+    def sign_in(request: Request, username: Annotated[str, Form()], password: Annotated[str, Form()],
+                csrf: Annotated[str, Form()]):
+        check_form(request, csrf)
+        if not (equal(username, "pandapply") and equal(password, token)):
+            return login_page(invalid=True)
+        timestamp = time.monotonic()
+        for session, expires in list(sessions.items()):
+            if expires <= timestamp:
+                sessions.pop(session, None)
+        sessions.pop(request.cookies.get("pandapply_session", ""), None)
+        if len(sessions) >= 256:
+            sessions.pop(next(iter(sessions)))
+        session = secrets.token_urlsafe(32)
+        sessions[session] = timestamp + session_lifetime
+        response = RedirectResponse(url="/", status_code=303)
+        response.set_cookie("pandapply_session", session, max_age=session_lifetime, httponly=True, samesite="strict")
+        return response
+
+    @app.post("/logout", dependencies=[Depends(authorized)])
+    def sign_out(request: Request, csrf: Annotated[str, Form()]):
+        check_form(request, csrf)
+        sessions.pop(request.cookies.get("pandapply_session", ""), None)
+        response = RedirectResponse(url="/login", status_code=303)
+        response.delete_cookie("pandapply_session", httponly=True, samesite="strict")
         return response
 
     @app.get("/api/v1/health", dependencies=[Depends(authorized)])
@@ -339,7 +412,9 @@ def create_app(database: Path, token: str) -> FastAPI:
         return ("<!doctype html><html lang='es'><meta charset='utf-8'><title>PandApply</title>"
                 "<style>body{font:16px system-ui;max-width:60rem;margin:3rem auto;padding:0 1rem}"
                 "section{border:1px solid #ccc;border-radius:.5rem;padding:1rem;margin:1rem 0}</style>"
-                f"<h1>PandApply</h1><p>Panel local</p><section><h2>Perfiles</h2><ul>{names}</ul>"
+                f"<h1>PandApply</h1><p>Panel local</p>"
+                f"<form method='post' action='/logout'><input type='hidden' name='csrf' value='{csrf_secret}'>"
+                f"<button>Cerrar sesión</button></form><section><h2>Perfiles</h2><ul>{names}</ul>"
                 f"<form method='post' action='/profiles'><input type='hidden' name='csrf' value='{csrf_secret}'>"
                 "<label>Nombre <input name='name' required maxlength='200'></label> "
                 "<label>Zona horaria <input name='timezone' value='UTC' required></label> "

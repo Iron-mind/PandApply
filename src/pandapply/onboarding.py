@@ -33,7 +33,9 @@ def dashboard(database: Path, *, host: str = "127.0.0.1", port: int = 8765) -> N
     from pandapply.web import create_app
 
     token = secrets.token_urlsafe(24)
-    print(f"Abre http://{host}:{port}/ — usuario: pandapply — contraseña: {token}", flush=True)
+    print(f"Abre http://{host}:{port}/login", flush=True)
+    print("Usuario: pandapply", flush=True)
+    print(f"Contraseña: {token}", flush=True)
     print("Para detener el panel, pulsa Ctrl+C.", flush=True)
     uvicorn.run(create_app(database, token), host=host, port=port, log_level="warning")
 

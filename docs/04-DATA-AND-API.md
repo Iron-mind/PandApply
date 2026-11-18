@@ -1,5 +1,13 @@
 # 04 — Modelo de datos, configuración y contratos de PandApply
 
+El panel HTML incluye `GET /login` y `POST /login` para iniciar sesión con el usuario
+`pandapply` y la contraseña temporal de la terminal. La sesión se guarda en una cookie
+opaca HttpOnly y SameSite=Strict, caduca a las 12 horas y no sobrevive al reinicio
+del servidor. `POST /logout` la revoca. Los formularios de login, logout y operaciones
+del panel exigen Origin local y token CSRF. Estas rutas HTML están fuera del prefijo
+`/api/v1`; las modificaciones de la API siguen exigiendo Bearer, aunque el navegador
+tenga una sesión válida.
+
 ## 1. Estrategia de persistencia
 
 **SQLite** es la fuente de verdad transaccional para vacantes, postulaciones, ejecución, decisiones, deduplicación, correos y auditoría. **Markdown** almacena conocimiento profesional transparente y modificable. **Archivos PDF/DOCX** se leen como fuentes (originales inmutables); **PDF generados** son artefactos derivados. Configuración YAML local se valida con Pydantic.
