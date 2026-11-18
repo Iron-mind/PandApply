@@ -30,6 +30,22 @@ conjunción «y», y normalizan remoto/híbrido/presencial. El evaluador aplica 
 con cualquiera de las modalidades seleccionadas. Si hay filtro y la modalidad de
 la vacante falta o es desconocida, exige revisión manual.
 
+`DELETE /api/v1/profiles/{id}` retira lógicamente un perfil (`active=false`), actualiza
+la selección de búsqueda en una misma transacción y conserva sus relaciones. Requiere
+Bearer y admite `if_version` para detectar ediciones concurrentes. Repetirlo no añade
+otro evento. `GET /profiles` excluye retirados; `include_inactive=true` los incluye.
+Los formularios HTML de eliminación usan confirmación explícita, CSRF y versión.
+
+La configuración añade `browser_mode` (`not_configured`, `hermes_managed`, `cdp`),
+`browser_cdp_endpoint` y `hermes_root`. `connector_health.browser` registra
+`not_checked`, `unavailable`, `cdp_reachable` o `sandbox_verified`. Estos dos últimos
+estados describen solo la prueba local ejecutada y no conceden permiso de envío real.
+
+El asistente configura `gmail_poll_interval_minutes` (5–10080), `gmail_poll_limit`,
+`gmail_enabled` y `gmail_reply_enabled` a partir de la cuenta guardada. Conserva
+`dry_run`; guardar permisos no crea intentos de respuesta ni tareas. Al instalar
+el cron, su intervalo predeterminado toma el valor guardado por el asistente.
+
 ## 1. Estrategia de persistencia
 
 **SQLite** es la fuente de verdad transaccional para vacantes, postulaciones, ejecución, decisiones, deduplicación, correos y auditoría. **Markdown** almacena conocimiento profesional transparente y modificable. **Archivos PDF/DOCX** se leen como fuentes (originales inmutables); **PDF generados** son artefactos derivados. Configuración YAML local se valida con Pydantic.

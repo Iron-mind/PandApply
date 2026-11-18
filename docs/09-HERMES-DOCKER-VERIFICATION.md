@@ -108,3 +108,10 @@ el origen local y entra al panel. El comportamiento coincide con la
 [documentación de Referrer-Policy sobre Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy#effect_on_the_origin_header).
 La prueba usa un servidor, base y contraseña ficticios dentro de Docker sin red;
 no utiliza perfiles del usuario. La protección de origen y token CSRF permanece activa.
+
+El chequeo `pandapply.browser_checks.probe_managed` disponible desde el asistente
+se ejecutó además en ese contenedor sin red: crea perfil, evidencia y CV ficticios,
+usa Hermes para enviar al ATS local y verifica un recibo `sandbox-`. Su resultado
+`sandbox_verified` se limita a ese formulario. Las pruebas CDP usan un servidor
+HTTP local simulado, comprueban `/json/version` y rechazan redirecciones o destinos
+remotos; no prueban control de un navegador personal real.

@@ -7,6 +7,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
+from pandapply.configuration import patch_settings_in_transaction, read_settings
 from pandapply.storage import now
 from pandapply.timezones import normalize_timezone
 
@@ -33,12 +34,54 @@ def add_profile(db: sqlite3.Connection, name: str, timezone: str, preferences: d
     return profile_id
 
 
-def list_profiles(db: sqlite3.Connection) -> list[dict]:
+def list_profiles(db: sqlite3.Connection, *, include_inactive: bool = False) -> list[dict]:
+    where = "" if include_inactive else "WHERE active=1 "
     rows = db.execute("SELECT id, name, preferences_json, active, version FROM professional_profiles "
-                      "ORDER BY created_at, id").fetchall()
+                      + where + "ORDER BY created_at, id").fetchall()
     return [{"id": row["id"], "name": row["name"],
              "preferences": json.loads(row["preferences_json"]),
              "active": bool(row["active"]), "version": row["version"]} for row in rows]
+
+
+def delete_profile(db: sqlite3.Connection, profile_id: str, *, actor: str,
+                   expected_version: int | None = None) -> dict:
+    """Remove a profile from use; retain its application/evidence history and source files."""
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        row = db.execute("SELECT active,version FROM professional_profiles WHERE id=?", (profile_id,)).fetchone()
+        if row is None:
+            raise ValueError("Profile not found")
+        if not row["active"]:
+            db.commit()
+            return {"id": profile_id, "active": False, "history_preserved": True}
+        if expected_version is not None and row["version"] != expected_version:
+            raise ValueError("Profile was changed by another operation; refresh before deleting")
+        busy = db.execute("SELECT 1 FROM submission_attempts s JOIN applications a ON a.id=s.application_id "
+                          "WHERE a.profile_id=? AND s.attempt_status='SUBMITTING'", (profile_id,)).fetchone()
+        if busy:
+            raise ValueError("A submission is in progress; reconcile its result before deleting the profile")
+        timestamp = now()
+        db.execute("UPDATE professional_profiles SET active=0,version=version+1,updated_at=? WHERE id=?",
+                   (timestamp, profile_id))
+        database = Path(db.execute("PRAGMA database_list").fetchone()[2])
+        settings = read_settings(db, database.parent / "config.json")
+        selected = [identifier for identifier in settings.search_profile_ids if identifier != profile_id]
+        remaining = db.execute("SELECT 1 FROM professional_profiles WHERE active=1 LIMIT 1").fetchone()
+        patch = {"search_profile_ids": selected}
+        if (settings.search_profile_ids and not selected) or not remaining:
+            patch["search_enabled"] = False
+        patch_settings_in_transaction(db, database.parent / "config.json", patch, actor=actor)
+        db.execute("UPDATE master_decisions SET decision_status='CANCELLED',decided_at=? WHERE "
+                   "related_entity_type='professional_profile' AND related_entity_id=? AND decision_status='PENDING'",
+                   (timestamp, profile_id))
+        db.execute("INSERT INTO event_outbox (id,event_type,payload_redacted_json,destination,delivery_status,created_at) "
+                   "VALUES (?,'PROFILE_DELETED',?,'local','PENDING',?)",
+                   (str(uuid.uuid4()), json.dumps({"profile_id": profile_id, "actor": actor}), timestamp))
+        db.commit()
+        return {"id": profile_id, "active": False, "history_preserved": True}
+    except Exception:
+        db.rollback()
+        raise
 
 
 def edit_profile(db: sqlite3.Connection, profile_id: str, *, name: str | None = None,
@@ -53,7 +96,7 @@ def edit_profile(db: sqlite3.Connection, profile_id: str, *, name: str | None = 
         raise ValueError("Preferences must be a JSON object")
     db.execute("BEGIN IMMEDIATE")
     try:
-        row = db.execute("SELECT name,preferences_json,version FROM professional_profiles WHERE id=?",
+        row = db.execute("SELECT name,preferences_json,version FROM professional_profiles WHERE id=? AND active=1",
                          (profile_id,)).fetchone()
         if row is None:
             raise ValueError("Profile not found")
@@ -86,7 +129,7 @@ def import_cv(db: sqlite3.Connection, profile_id: str, path: Path) -> str:
     document_id = str(uuid.uuid4())
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     with db:
-        if not db.execute("SELECT 1 FROM professional_profiles WHERE id=?", (profile_id,)).fetchone():
+        if not db.execute("SELECT 1 FROM professional_profiles WHERE id=? AND active=1", (profile_id,)).fetchone():
             raise ValueError("Profile not found")
         db.execute("INSERT INTO documents (id, profile_id, kind, file_path, sha256, mime_type, "
                    "created_at) VALUES (?, ?, 'cv_original', ?, ?, ?, ?)",

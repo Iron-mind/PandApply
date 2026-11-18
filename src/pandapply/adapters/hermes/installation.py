@@ -126,7 +126,9 @@ def discover(*, home: Path | None = None, root: Path | None = None,
     gmail = bool(home and (home / "google_token.json").is_file())
     whatsapp = bool(home and any((home / p / "creds.json").is_file() for p in (
         "platforms/whatsapp/session", "whatsapp/session")))
+    source_roots = [r for r in roots if (r / "hermes_cli").is_dir() and (r / "pyproject.toml").is_file()]
     return {"executable": executable, "home": str(home) if home else None,
+            "root": str(source_roots[0]) if len(source_roots) == 1 else None,
             "python": str(pythons[0]) if len(pythons) == 1 else None,
             "workspace_script": str(script) if script else None,
             "gmail": "credentials_detected_not_verified" if gmail else "not_detected",

@@ -14,7 +14,7 @@ def propose_skill(db: sqlite3.Connection, profile_id: str, skill: str) -> str:
     proposal_id = str(uuid.uuid4())
     timestamp = now()
     with db:
-        if not db.execute("SELECT 1 FROM professional_profiles WHERE id=?", (profile_id,)).fetchone():
+        if not db.execute("SELECT 1 FROM professional_profiles WHERE id=? AND active=1", (profile_id,)).fetchone():
             raise ValueError("Profile not found")
         db.execute("INSERT INTO master_decisions (id, decision_type, related_entity_type, "
                    "related_entity_id, payload_json, decision_status, authorized_channel, "
@@ -34,6 +34,9 @@ def decide_skill_in_transaction(db: sqlite3.Connection, proposal_id: str, *, app
     if (channel not in ("cli", "web") or decision["authorized_channel"] not in ("local", channel)
             or decision["authorized_principal"] != "local-owner"):
         raise ValueError("Decision is not authorized for this channel")
+    if not db.execute("SELECT 1 FROM professional_profiles WHERE id=? AND active=1",
+                      (decision["related_entity_id"],)).fetchone():
+        raise ValueError("Active profile not found")
     timestamp = now()
     status = "APPROVED" if approve else "REJECTED"
     if approve:

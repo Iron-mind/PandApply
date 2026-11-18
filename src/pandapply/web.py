@@ -28,7 +28,7 @@ from pandapply.mail import (
 )
 from pandapply.mail_send import send_approved
 from pandapply.memory import propose_skill
-from pandapply.profiles import add_profile, edit_profile, list_profiles
+from pandapply.profiles import add_profile, delete_profile, edit_profile, list_profiles
 from pandapply.storage import connect
 from pandapply.work_modes import work_mode_label, work_mode_preference
 
@@ -195,9 +195,19 @@ def create_app(database: Path, token: str) -> FastAPI:
         return {"status": "degraded", "components": {"database": "available", "integrations": "not verified"}}
 
     @app.get("/api/v1/profiles", dependencies=[Depends(authorized)])
-    def profiles():
+    def profiles(include_inactive: bool = False):
         with closing(connect(database)) as db:
-            return list_profiles(db)
+            return list_profiles(db, include_inactive=include_inactive)
+
+    @app.delete("/api/v1/profiles/{profile_id}", dependencies=[Depends(authorized_mutation)])
+    def remove_profile(profile_id: str, if_version: int | None = None):
+        with closing(connect(database)) as db:
+            if not db.execute("SELECT 1 FROM professional_profiles WHERE id=?", (profile_id,)).fetchone():
+                raise HTTPException(status_code=404, detail="Profile not found")
+            try:
+                return delete_profile(db, profile_id, actor="web", expected_version=if_version)
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/v1/profiles", status_code=201, dependencies=[Depends(authorized_mutation)])
     def create_profile(profile: ProfileRequest):
@@ -353,7 +363,8 @@ def create_app(database: Path, token: str) -> FastAPI:
                 "<button>Guardar preferencias</button></form>"
                 f"<form method='post' action='/profiles/{profile_id}/fixture-discovery'>"
                 f"<input type='hidden' name='csrf' value='{csrf_secret}'>"
-                "<button>Evaluar vacantes ficticias</button></form></li>"
+                "<button>Evaluar vacantes ficticias</button></form>"
+                f"<p><a href='/profiles/{profile_id}/delete'>Eliminar perfil</a></p></li>"
             )
         names = "".join(profile_items) or "<li>Sin perfiles</li>"
         jobs_html = "".join(
@@ -503,6 +514,36 @@ def create_app(database: Path, token: str) -> FastAPI:
                 propose_skill(db, profile_id, skill)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return RedirectResponse(url="/", status_code=303)
+
+    @app.get("/profiles/{profile_id}/delete", dependencies=[Depends(authorized)], response_class=HTMLResponse)
+    def confirm_profile_deletion(profile_id: str):
+        with closing(connect(database)) as db:
+            profile = db.execute("SELECT name,version FROM professional_profiles WHERE id=? AND active=1", (profile_id,)).fetchone()
+            if not profile:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            count = db.execute("SELECT count(*) FROM applications WHERE profile_id=?", (profile_id,)).fetchone()[0]
+        return ("<!doctype html><html lang='es'><meta charset='utf-8'><title>Eliminar perfil — PandApply</title>"
+                f"<h1>Eliminar {html.escape(profile['name'])}</h1>"
+                "<p>Se retirará de tus perfiles y búsquedas. Se conservarán los CV, las evidencias y "
+                f"el historial de {count} postulaciones. Los archivos originales no se borrarán.</p>"
+                f"<form method='post' action='/profiles/{html.escape(profile_id, quote=True)}/delete'>"
+                f"<input type='hidden' name='csrf' value='{csrf_secret}'>"
+                f"<input type='hidden' name='version' value='{profile['version']}'>"
+                "<label><input type='checkbox' name='confirmation' value='delete' required>Confirmo que quiero eliminar este perfil</label> "
+                "<button>Eliminar perfil</button></form><p><a href='/'>Cancelar</a></p></html>")
+
+    @app.post("/profiles/{profile_id}/delete", dependencies=[Depends(authorized)])
+    def delete_profile_from_dashboard(request: Request, profile_id: str, csrf: Annotated[str, Form()],
+                                      version: Annotated[int, Form()], confirmation: Annotated[str, Form()] = ""):
+        check_form(request, csrf)
+        if confirmation != "delete":
+            raise HTTPException(status_code=400, detail="Confirma la eliminación del perfil")
+        try:
+            with closing(connect(database)) as db:
+                delete_profile(db, profile_id, actor="web", expected_version=version)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return RedirectResponse(url="/", status_code=303)
 
     @app.post("/profiles/{profile_id}/preferences", dependencies=[Depends(authorized)])

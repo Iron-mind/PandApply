@@ -3,11 +3,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pandapply.configuration import read_settings
+from pandapply.configuration import patch_settings, read_settings
 from pandapply.discovery import Candidate, ProfileCriteria, evaluate
 from pandapply.onboarding import run
-from pandapply.profiles import list_profiles
-from pandapply.storage import connect
+from pandapply.profiles import add_profile, list_profiles
+from pandapply.storage import connect, migrate
 
 
 def no_hermes(**kwargs):
@@ -23,12 +23,12 @@ def answers(monkeypatch, values):
 def test_wizard_creates_profile_and_resumes_without_duplicate(tmp_path, monkeypatch):
     monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
     path = tmp_path / "pandapply.db"
-    answers(monkeypatch, ["1", "", "Backend", "UTC", "", "n", "n", "n"])
+    answers(monkeypatch, ["1", "", "3", "Backend", "UTC", "", "n", "n", "n"])
     assert run(path) == 0
     with connect(path) as db:
         assert [p["name"] for p in list_profiles(db)] == ["Backend"]
         assert read_settings(db, tmp_path / "config.json").dry_run
-    answers(monkeypatch, ["1", "", "1", "", "n", "n", "n"])
+    answers(monkeypatch, ["1", "", "3", "1", "", "n", "n", "n"])
     assert run(path) == 0
     with connect(path) as db:
         assert len(list_profiles(db)) == 1
@@ -67,7 +67,7 @@ def test_bootstrap_installs_and_launches_using_only_its_virtualenv(tmp_path, mon
 
 def test_full_setup_saves_search_preferences_before_offering_dashboard(tmp_path, monkeypatch):
     monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
-    answers(monkeypatch, ["1", "", "Backend", "UTC", "", "s", "QA", "1,2",
+    answers(monkeypatch, ["1", "", "3", "Backend", "UTC", "", "s", "QA", "1,2",
                           "Backend Engineer", "Colombia", "es,en", "Python", "remote, hybrid y onsite", "2000",
                           "QA Engineer", "Colombia", "es", "Testing", "hybrid", "1500",
                           "3", "12", "120", "n", "s"])
@@ -104,7 +104,7 @@ def test_gmail_connection_does_not_ask_for_internal_paths(tmp_path, monkeypatch,
     home.mkdir()
     detected = no_hermes() | {"home": str(home)}
     monkeypatch.setattr("pandapply.onboarding.discover", lambda **kwargs: detected)
-    replies = iter(["1", "s", "s", "Backend", "UTC", "", "n", "n", "n"])
+    replies = iter(["1", "s", "s", "3", "Backend", "UTC", "", "n", "n", "n"])
 
     def answer(prompt):
         assert "Ejecutable Python" not in prompt and "google_api.py" not in prompt
@@ -117,7 +117,7 @@ def test_gmail_connection_does_not_ask_for_internal_paths(tmp_path, monkeypatch,
 
 def test_invalid_timezone_reasks_only_timezone_and_accepts_utc_offset(tmp_path, monkeypatch):
     monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
-    replies = iter(["1", "", "Backend", "invalid-zone", "UTC-5", "", "n", "n", "n"])
+    replies = iter(["1", "", "3", "Backend", "invalid-zone", "UTC-5", "", "n", "n", "n"])
     prompts = []
 
     def answer(prompt):
@@ -131,3 +131,21 @@ def test_invalid_timezone_reasks_only_timezone_and_accepts_utc_offset(tmp_path, 
     assert sum("Zona horaria (ej." in prompt for prompt in prompts) == 2
     with connect(path) as db:
         assert db.execute("SELECT timezone FROM master_profile").fetchone()[0] == "Etc/GMT+5"
+
+
+def test_setup_configures_gmail_access_without_enabling_real_dispatch(tmp_path, monkeypatch):
+    path = tmp_path / "data.db"
+    migrate(path)
+    with connect(path) as db:
+        add_profile(db, "Backend", "UTC", {})
+        patch_settings(db, tmp_path / "config.json", {"gmail_account": "owner@example.test"}, actor="cli")
+    monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
+    answers(monkeypatch, ["1", "", "label:Jobs", "5", "15", "3", "3", "1", "", "n", "n", "n"])
+    assert run(path) == 0
+    with connect(path) as db:
+        settings = read_settings(db, tmp_path / "config.json")
+        assert settings.gmail_query == "label:Jobs" and settings.gmail_poll_limit == 5
+        assert settings.gmail_poll_interval_minutes == 15
+        assert settings.gmail_enabled and settings.gmail_reply_enabled and settings.dry_run
+        assert db.execute("SELECT count(*) FROM reply_attempts").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM scheduled_jobs").fetchone()[0] == 0

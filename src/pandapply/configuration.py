@@ -6,6 +6,7 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,8 +30,12 @@ class Configuration(BaseModel):
     gmail_query: str = Field(default="", max_length=2000)
     hermes_python: str = Field(default="", max_length=4096)
     hermes_home: str = Field(default="", max_length=4096)
+    hermes_root: str = Field(default="", max_length=4096)
+    browser_mode: Literal["not_configured", "hermes_managed", "cdp"] = "not_configured"
+    browser_cdp_endpoint: str = Field(default="", max_length=2048)
     hermes_workspace_script: str = Field(default="", max_length=4096)
     gmail_poll_limit: int = Field(default=10, ge=1, le=20)
+    gmail_poll_interval_minutes: int = Field(default=20, ge=5, le=10080)
     auto_apply_enabled: bool = False
     dry_run: bool = True
     min_match_score: float = Field(default=0.8, ge=0, le=1)
@@ -67,24 +72,34 @@ def read_settings(db: sqlite3.Connection, legacy_path: Path) -> Configuration:
 
 def patch_settings(db: sqlite3.Connection, legacy_path: Path, patch: dict, *, actor: str,
                    expected_revision: int | None = None) -> Configuration:
-    if not isinstance(patch, dict) or "version" in patch or actor not in ("cli", "web"):
-        raise ValueError("Invalid configuration update")
     db.execute("BEGIN IMMEDIATE")
     try:
-        revision = db.execute("SELECT COALESCE(MAX(id),0) FROM config_revisions").fetchone()[0]
-        if expected_revision is not None and revision != expected_revision:
-            raise ValueError("Configuration changed in another session; refresh before saving")
-        current = read_settings(db, legacy_path).model_dump()
-        current.update(patch)
-        settings = Configuration.model_validate(current)
-        content = json.dumps(settings.model_dump(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        last = db.execute("SELECT sha256 FROM config_revisions ORDER BY id DESC LIMIT 1").fetchone()
-        if last is None or last[0] != checksum:
-            db.execute("INSERT INTO config_revisions (config_json,sha256,actor,created_at) VALUES (?,?,?,?)",
-                       (content, checksum, actor, now()))
+        settings = patch_settings_in_transaction(db, legacy_path, patch, actor=actor,
+                                                  expected_revision=expected_revision)
         db.commit()
         return settings
     except Exception:
         db.rollback()
         raise
+
+
+def patch_settings_in_transaction(db: sqlite3.Connection, legacy_path: Path, patch: dict, *, actor: str,
+                                  expected_revision: int | None = None) -> Configuration:
+    """Compose configuration changes atomically with a domain operation."""
+    if not db.in_transaction:
+        raise ValueError("An existing transaction is required")
+    if not isinstance(patch, dict) or "version" in patch or actor not in ("cli", "web"):
+        raise ValueError("Invalid configuration update")
+    revision = db.execute("SELECT COALESCE(MAX(id),0) FROM config_revisions").fetchone()[0]
+    if expected_revision is not None and revision != expected_revision:
+        raise ValueError("Configuration changed in another session; refresh before saving")
+    current = read_settings(db, legacy_path).model_dump()
+    current.update(patch)
+    settings = Configuration.model_validate(current)
+    content = json.dumps(settings.model_dump(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    last = db.execute("SELECT sha256 FROM config_revisions ORDER BY id DESC LIMIT 1").fetchone()
+    if last is None or last[0] != checksum:
+        db.execute("INSERT INTO config_revisions (config_json,sha256,actor,created_at) VALUES (?,?,?,?)",
+                   (content, checksum, actor, now()))
+    return settings

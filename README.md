@@ -26,6 +26,8 @@ El asistente te guía para:
 
 1. Elegir Hermes y confirmar su perfil detectado, o indicar su ubicación si hace falta.
 2. Reutilizar la autorización existente de Gmail y comprobar la cuenta si lo deseas. La sesión de WhatsApp se reconoce, pero su canal en PandApply sigue pendiente.
+   Con la cuenta guardada, el asistente pide filtro, límite de correos, intervalo y permisos (deshabilitado, consulta o respuestas con aprobación). Guarda la configuración sin desactivar el modo de simulación ni activar una tarea programada.
+   El asistente también permite elegir navegador administrado por Hermes o conexión local CDP a un navegador existente y comprobarlo. La prueba administrada utiliza un formulario local con datos ficticios. La comprobación CDP solo verifica que la conexión responde; la automatización de ese navegador sigue pendiente. Puedes dejarlo para después.
 3. Elegir o crear un perfil profesional y registrar un CV PDF/DOCX, que también puedes agregar después.
 4. Elegir los perfiles que buscarán vacantes, cargos, ubicaciones, idiomas, habilidades como filtros, modalidad y piso salarial.
 5. Elegir el máximo diario de postulaciones, el volumen de evaluación y la frecuencia. Guardar esos valores no activa postulaciones ni crea un cron.
@@ -94,6 +96,8 @@ pandapply profiles add Backend --timezone UTC
 pandapply profiles list
 pandapply profiles import-cv ID_DEL_PERFIL ruta/al/cv.pdf
 ```
+
+Para eliminar un perfil, usa «Eliminar perfil» en el panel o `pandapply profiles delete ID_DEL_PERFIL --confirm`. Se retira de las búsquedas y de la lista habitual; se conservan sus postulaciones, evidencias y archivos CV. `pandapply profiles list --all` permite consultar también los retirados. No se puede eliminar mientras haya una postulación en curso; primero hay que comprobar su resultado.
 
 La importación registra la ruta y el hash del archivo sin modificar el original. El identificador devuelto permite consultar texto con `pandapply profiles extract-cv ID_DEL_DOCUMENTO`. El texto extraído no se incorpora automáticamente a la memoria ni se considera confirmado; los PDF escaneados pueden necesitar OCR y las tablas DOCX no se extraen todavía.
 

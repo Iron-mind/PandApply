@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 
 from pandapply.configuration import load_config, patch_settings, read_settings
-from pandapply.profiles import add_profile, edit_profile, import_cv, list_profiles
+from pandapply.profiles import add_profile, delete_profile, edit_profile, import_cv, list_profiles
 from pandapply.runtime import HermesAdapter
 from pandapply.storage import connect, migrate
 
@@ -40,7 +40,12 @@ def main() -> int:
     setup_mode.add_argument("--non-interactive", action="store_true", help="Print a JSON report without prompting")
     profiles = sub.add_parser("profiles", help="Manage local professional profiles")
     profile_commands = profiles.add_subparsers(dest="profile_command", required=True)
-    profile_commands.add_parser("list")
+    profile_list = profile_commands.add_parser("list")
+    profile_list.add_argument("--all", action="store_true", help="Include deleted profiles retained for history")
+    profile_delete = profile_commands.add_parser("delete", help="Remove a profile from use, preserving its history")
+    profile_delete.add_argument("profile_id")
+    profile_delete.add_argument("--confirm", action="store_true")
+    profile_delete.add_argument("--if-version", type=int)
     add = profile_commands.add_parser("add")
     add.add_argument("name")
     add.add_argument("--timezone", default="UTC")
@@ -186,7 +191,7 @@ def main() -> int:
     scheduler_install = scheduler_commands.add_parser("install")
     scheduler_install.add_argument("--hermes-executable", required=True, type=Path)
     scheduler_install.add_argument("--hermes-home", required=True, type=Path)
-    scheduler_install.add_argument("--interval", default="every 20m")
+    scheduler_install.add_argument("--interval", help="Defaults to the Gmail interval configured in setup")
     for action in ("status", "pause", "resume", "reconcile"):
         scheduler_commands.add_parser(action)
     args = parser.parse_args()
@@ -219,7 +224,8 @@ def main() -> int:
             with connect(path) as db:
                 if args.scheduler_command == "install":
                     cron = HermesCron(args.hermes_executable, args.hermes_home)
-                    result = cron.install(db, args.interval)
+                    settings = read_settings(db, data_dir() / "config.json")
+                    result = cron.install(db, args.interval or f"every {settings.gmail_poll_interval_minutes}m")
                 else:
                     row = db.execute("SELECT * FROM scheduled_jobs WHERE name=?", (NAME,)).fetchone()
                     if args.scheduler_command == "status":
@@ -495,7 +501,11 @@ def main() -> int:
         try:
             with connect(path) as db:
                 if args.profile_command == "list":
-                    print(json.dumps(list_profiles(db), ensure_ascii=False, indent=2))
+                    print(json.dumps(list_profiles(db, include_inactive=args.all), ensure_ascii=False, indent=2))
+                elif args.profile_command == "delete":
+                    if not args.confirm:
+                        raise ValueError("Add --confirm to remove this profile; application history and original CV files are preserved")
+                    print(json.dumps(delete_profile(db, args.profile_id, actor="cli", expected_version=args.if_version)))
                 elif args.profile_command == "add":
                     preferences = json.loads(args.preferences)
                     if not isinstance(preferences, dict):
@@ -548,7 +558,7 @@ def main() -> int:
                 if not same_home:
                     detected["issues"].append("Saved Hermes profile differs; existing configuration preserved")
                 for key, value in (("hermes_home", detected["home"]), ("hermes_python", detected["python"]),
-                                   ("hermes_workspace_script", detected["workspace_script"])):
+                                   ("hermes_workspace_script", detected["workspace_script"]), ("hermes_root", detected["root"])):
                     if value and same_home and not getattr(settings, key):
                         patch[key] = value
                 if patch:

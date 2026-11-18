@@ -156,6 +156,8 @@ paths:
   /profiles:
     get:
       operationId: listProfiles
+      parameters:
+        - {name: include_inactive, in: query, schema: {type: boolean, default: false}}
       responses:
         '200':
           description: Perfiles
@@ -173,6 +175,28 @@ paths:
             schema: {$ref: '#/components/schemas/Profile'}
       responses:
         '201': {description: Perfil creado}
+  /profiles/{id}:
+    delete:
+      operationId: deleteProfile
+      description: Retira el perfil de uso y búsquedas; conserva historial, documentos y evidencias.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: if_version, in: query, schema: {type: integer, minimum: 1}}
+      responses:
+        '200':
+          description: Perfil retirado, también si ya estaba retirado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, active, history_preserved]
+                properties:
+                  id: {type: string}
+                  active: {type: boolean, const: false}
+                  history_preserved: {type: boolean, const: true}
+        '401': {description: Requiere Bearer local}
+        '404': {description: Perfil inexistente}
+        '409': {description: Versión modificada o postulación en curso}
   /jobs:
     get:
       operationId: listJobs

@@ -35,7 +35,8 @@ def begin_attempt(db: sqlite3.Connection, application_id: str, *, url: str,
     db.execute("BEGIN IMMEDIATE")
     try:
         app = db.execute("SELECT a.status,j.ats_provider,j.canonical_url FROM applications a "
-                         "JOIN job_postings j ON j.id=a.job_posting_id WHERE a.id=?",
+                         "JOIN job_postings j ON j.id=a.job_posting_id "
+                         "JOIN professional_profiles p ON p.id=a.profile_id WHERE a.id=? AND p.active=1",
                          (application_id,)).fetchone()
         if not app or app["status"] != "READY_TO_SUBMIT":
             raise SubmissionBlocked("Application is not ready to submit")

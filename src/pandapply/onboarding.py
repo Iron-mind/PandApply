@@ -7,11 +7,12 @@ from contextlib import closing
 from pathlib import Path
 
 from pandapply.adapters.hermes.installation import discover
+from pandapply.browser_checks import cdp_endpoint, probe_cdp, probe_managed
 from pandapply.configuration import patch_settings, read_settings
 from pandapply.hermes_workspace import HermesWorkspaceReader, WorkspaceUnavailable
 from pandapply.profiles import add_profile, edit_profile, import_cv, list_profiles
 from pandapply.setup_checks import check_database
-from pandapply.storage import connect, migrate
+from pandapply.storage import connect, migrate, now
 from pandapply.timezones import normalize_timezone
 from pandapply.work_modes import work_mode_label, work_mode_preference
 
@@ -95,6 +96,58 @@ def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
     print("Preferencias guardadas. El cupo no autoriza postulaciones; la búsqueda real y su programación siguen pendientes.")
 
 
+def configure_browser(db, config_path: Path) -> None:
+    print("\nNavegador para las postulaciones")
+    print("1. Navegador administrado por Hermes (prueba con datos ficticios)")
+    print("2. Mi navegador existente, mediante una conexión CDP local")
+    print("3. Configurar después")
+    settings = read_settings(db, config_path)
+    default = {"hermes_managed": "1", "cdp": "2", "not_configured": "3"}[settings.browser_mode]
+    while True:
+        choice = ask("¿Qué navegador quieres utilizar?", default)
+        if choice in ("1", "2", "3"):
+            break
+        print("Elige 1, 2 o 3.")
+    if choice == "3":
+        print("Comprobación del navegador pendiente; la selección anterior se conserva.")
+        return
+    patch = {"browser_mode": "hermes_managed" if choice == "1" else "cdp", "browser_cdp_endpoint": ""}
+    if choice == "2":
+        print("Habilita la conexión de depuración local de Chrome/Edge. La comprobación consulta solo su estado.")
+        while True:
+            try:
+                patch["browser_cdp_endpoint"] = cdp_endpoint(ask("Dirección CDP local", settings.browser_cdp_endpoint or "http://127.0.0.1:9222"))
+                break
+            except ValueError as exc:
+                print(str(exc))
+    settings = patch_settings(db, config_path, patch, actor="cli")
+    # Changing configuration invalidates any earlier capability check.
+    with db:
+        db.execute("INSERT INTO connector_health (connector_id,state,checked_at,detail_redacted) "
+                   "VALUES ('browser','not_checked',?,'Nueva selección pendiente de prueba') "
+                   "ON CONFLICT(connector_id) DO UPDATE SET state=excluded.state,checked_at=excluded.checked_at,"
+                   "detail_redacted=excluded.detail_redacted", (now(),))
+    if not yes("¿Comprobar ahora la conexión del navegador?", default=False):
+        return
+    try:
+        if settings.browser_mode == "cdp":
+            result = probe_cdp(settings.browser_cdp_endpoint)
+            print("Conexión CDP disponible. La automatización con este navegador todavía está pendiente.")
+        else:
+            if not settings.hermes_python or not settings.hermes_root:
+                raise ValueError("No se pudo preparar la prueba administrada a partir de tu instalación de Hermes")
+            print("Probando Hermes en un formulario local con datos ficticios; puede tardar hasta dos minutos...")
+            result = probe_managed(Path(settings.hermes_python), Path(settings.hermes_root))
+            print("Prueba local del navegador completada; no verifica portales de empleo reales.")
+        state, detail = result["status"], result["scope"]
+    except Exception:  # noqa: BLE001 - browser errors can contain private paths or page content
+        state, detail = "unavailable", "No se pudo completar la comprobación local del navegador"
+        print(detail + ". Puedes continuar y repetir la comprobación después.")
+    with db:
+        db.execute("UPDATE connector_health SET state=?,checked_at=?,detail_redacted=? WHERE connector_id='browser'",
+                   (state, now(), detail))
+
+
 def dashboard(database: Path, *, host: str = "127.0.0.1", port: int = 8765) -> None:
     import uvicorn
 
@@ -146,9 +199,10 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             patch = {}
             if detected["home"]:
                 for key, field in (("hermes_home", "home"), ("hermes_python", "python"),
-                                   ("hermes_workspace_script", "workspace_script"), ("hermes_executable", "executable")):
+                                   ("hermes_workspace_script", "workspace_script"), ("hermes_executable", "executable"),
+                                   ("hermes_root", "root")):
                     current = getattr(settings, key)
-                    value = detected[field]
+                    value = detected.get(field)
                     if (key == "hermes_home" or not current) and value:
                         patch[key] = value
                 # A deliberate profile change must not retain another account's defaults.
@@ -159,6 +213,9 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                     settings = patch_settings(db, config_path, patch, actor="cli")
             print("Gmail: " + ("autorización existente detectada" if detected["gmail"] != "not_detected" else "no detectado"))
             print("WhatsApp: " + ("sesión existente detectada; canal PandApply pendiente" if detected["whatsapp"] != "not_detected" else "no detectado (opcional)"))
+            print("\nConexión Gmail")
+            if not detected["home"]:
+                print("Gmail queda pendiente porque no hay una instalación de Hermes seleccionada.")
             if detected["home"] and yes("¿Comprobar ahora tu cuenta de Gmail en Hermes?", default=detected["gmail"] != "not_detected"):
                 print("Preparando la conexión con la instalación existente de Hermes...")
                 refreshed = discover(home=Path(settings.hermes_home), root=root, interpreter=interpreter)
@@ -186,8 +243,21 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             settings = read_settings(db, config_path)
             if settings.gmail_account:
                 query = ask("Filtro de correo para el seguimiento Gmail", settings.gmail_query or "newer_than:7d")
-                patch_settings(db, config_path, {"gmail_query": query}, actor="cli")
-                print("Filtro guardado; el seguimiento automático no se activa en este paso.")
+                limit = number("Máximo de correos por consulta", settings.gmail_poll_limit, 1, 20)
+                interval = number("Intervalo de seguimiento Gmail en minutos", settings.gmail_poll_interval_minutes, 5, 10080)
+                print("Permisos Gmail: 1 = deshabilitado; 2 = solo consulta; 3 = consulta y respuestas con aprobación.")
+                default = "3" if settings.gmail_reply_enabled else "2" if settings.gmail_enabled else "1"
+                while True:
+                    access = ask("¿Qué uso de Gmail autorizas?", default)
+                    if access in ("1", "2", "3"):
+                        break
+                    print("Elige 1, 2 o 3.")
+                patch_settings(db, config_path, {"gmail_query": query, "gmail_poll_limit": limit,
+                               "gmail_poll_interval_minutes": interval, "gmail_enabled": access != "1",
+                               "gmail_reply_enabled": access == "3"}, actor="cli")
+                print("Cuenta, filtro, intervalo y permisos guardados. El modo de simulación se conserva; "
+                      "la tarea programada todavía debe instalarse y activarse explícitamente.")
+            configure_browser(db, config_path)
             print("\n2. Tus preferencias de búsqueda")
             print("Las guardamos en un perfil de búsqueda: un grupo de preferencias para encontrar empleo.")
             print("El nombre es una etiqueta que tú eliges, como 'Desarrollo remoto'. Después indicarás los cargos a buscar.")
