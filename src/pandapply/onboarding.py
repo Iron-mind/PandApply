@@ -12,6 +12,7 @@ from pandapply.hermes_workspace import HermesWorkspaceReader, WorkspaceUnavailab
 from pandapply.profiles import add_profile, edit_profile, import_cv, list_profiles
 from pandapply.setup_checks import check_database
 from pandapply.storage import connect, migrate
+from pandapply.timezones import normalize_timezone
 
 
 def ask(label: str, default: str = "") -> str:
@@ -204,8 +205,15 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             if profile_id is None:
                 while True:
                     name = ask("Nombre para estas preferencias (por ejemplo, Desarrollo remoto)", "Principal")
-                    timezone = ask("Zona horaria IANA", os.environ.get("TZ", "UTC"))
+                    if len(name) <= 200:
+                        break
+                    print("Usa un nombre de hasta 200 caracteres.")
+                print("Puedes indicar una ciudad (America/Bogota) o un desfase fijo (UTC-5). "
+                      "La ciudad ajusta los cambios de horario estacionales cuando corresponden.")
+                while True:
+                    timezone = ask("Zona horaria (ej. America/Bogota o UTC-5)", os.environ.get("TZ", "UTC"))
                     try:
+                        timezone = normalize_timezone(timezone)
                         profile_id = add_profile(db, name, timezone, {})
                         break
                     except ValueError as exc:

@@ -1,9 +1,32 @@
 import hashlib
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from pandapply.profiles import add_profile, edit_profile, import_cv, list_profiles
 from pandapply.storage import connect, migrate
+from pandapply.timezones import normalize_timezone
+
+
+@pytest.mark.parametrize(("value", "hours"), [("UTC-5", -5), (" utc-05:00 ", -5),
+                                             ("UTC+3", 3), ("UTC+14", 14), ("UTC-12", -12), ("UTC+0", 0)])
+def test_offset_input_keeps_correct_sign_and_persists_as_iana(tmp_path, value, hours):
+    path = tmp_path / "data.db"
+    migrate(path)
+    with connect(path) as db:
+        add_profile(db, "Backend", value, {})
+        zone = db.execute("SELECT timezone FROM master_profile").fetchone()[0]
+        assert datetime(2026, 1, 1, tzinfo=ZoneInfo(zone)).utcoffset() == timedelta(hours=hours)
+        assert datetime(2026, 7, 1, tzinfo=ZoneInfo(zone)).utcoffset() == timedelta(hours=hours)
+
+
+def test_timezone_errors_are_actionable_and_cities_remain_unchanged():
+    assert normalize_timezone("America/Bogota") == "America/Bogota"
+    with pytest.raises(ValueError, match="America/Bogota"):
+        normalize_timezone("UTC-99")
+    with pytest.raises(ValueError, match="Asia/Kolkata"):
+        normalize_timezone("UTC+5:30")
 
 
 def test_profiles_persist_and_cv_original_is_unchanged(tmp_path):

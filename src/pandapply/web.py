@@ -417,7 +417,7 @@ def create_app(database: Path, token: str) -> FastAPI:
                 f"<button>Cerrar sesión</button></form><section><h2>Perfiles</h2><ul>{names}</ul>"
                 f"<form method='post' action='/profiles'><input type='hidden' name='csrf' value='{csrf_secret}'>"
                 "<label>Nombre <input name='name' required maxlength='200'></label> "
-                "<label>Zona horaria <input name='timezone' value='UTC' required></label> "
+                "<label>Zona horaria (ciudad o desfase, ej. America/Bogota o UTC-5) <input name='timezone' value='UTC' required></label> "
                 "<button>Crear perfil</button></form></section>"
                 f"<section><h2>Actividad</h2><p>Vacantes: {job_count}</p>"
                 f"<p>Postulaciones: {application_count}</p></section>"

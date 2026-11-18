@@ -6,9 +6,9 @@ import mimetypes
 import sqlite3
 import uuid
 from pathlib import Path
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pandapply.storage import now
+from pandapply.timezones import normalize_timezone
 
 
 def add_profile(db: sqlite3.Connection, name: str, timezone: str, preferences: dict, *,
@@ -16,10 +16,7 @@ def add_profile(db: sqlite3.Connection, name: str, timezone: str, preferences: d
     name = name.strip()
     if not name or len(name) > 200:
         raise ValueError("Profile name must contain 1–200 characters")
-    try:
-        ZoneInfo(timezone)
-    except ZoneInfoNotFoundError as exc:
-        raise ValueError("Invalid IANA timezone") from exc
+    timezone = normalize_timezone(timezone)
     if profile_id is not None and (not profile_id.strip() or len(profile_id) > 200):
         raise ValueError("Profile ID must contain 1–200 characters")
     profile_id = profile_id or str(uuid.uuid4())

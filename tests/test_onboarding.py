@@ -111,3 +111,21 @@ def test_gmail_connection_does_not_ask_for_internal_paths(tmp_path, monkeypatch,
     monkeypatch.setattr("builtins.input", answer)
     assert run(tmp_path / "data.db") == 0
     assert "Gmail queda pendiente" in capsys.readouterr().out
+
+
+def test_invalid_timezone_reasks_only_timezone_and_accepts_utc_offset(tmp_path, monkeypatch):
+    monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
+    replies = iter(["1", "", "Backend", "invalid-zone", "UTC-5", "", "n", "n", "n"])
+    prompts = []
+
+    def answer(prompt):
+        prompts.append(prompt)
+        return next(replies)
+
+    monkeypatch.setattr("builtins.input", answer)
+    path = tmp_path / "data.db"
+    assert run(path) == 0
+    assert sum("Nombre para estas preferencias" in prompt for prompt in prompts) == 1
+    assert sum("Zona horaria (ej." in prompt for prompt in prompts) == 2
+    with connect(path) as db:
+        assert db.execute("SELECT timezone FROM master_profile").fetchone()[0] == "Etc/GMT+5"
