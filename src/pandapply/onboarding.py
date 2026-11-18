@@ -42,10 +42,9 @@ def number(label: str, default: int, minimum: int, maximum: int) -> int:
 
 def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
     settings = read_settings(db, config_path)
-    print("Un perfil de búsqueda agrupa cargos que comparten salario, modalidad, ubicación y otros filtros.")
-    print("Ejemplo: perfil 'Desarrollo remoto'; cargos 'Backend Developer, Python Developer'.")
-    print("Puedes usar un solo perfil para varios cargos. Crea otro solo si necesitas preferencias diferentes.")
-    additional = ask("Otros perfiles de búsqueda que quieres crear (opcional, separados por comas; Enter para ninguno)")
+    print("Cada perfil define el cargo que quieres buscar y sus filtros de salario, modalidad y ubicación.")
+    print("Usaremos su nombre como término de búsqueda, sin volver a pedirte títulos ni cargos.")
+    additional = ask("Otros cargos para crear como perfiles, separados por comas (opcional; Enter para ninguno)")
     profiles = list_profiles(db)
     names = {p["name"].casefold() for p in profiles}
     for name in [name.strip() for name in additional.split(",") if name.strip()]:
@@ -66,10 +65,11 @@ def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
         print("Selecciona números de la lista.")
     for profile in selected:
         print("Perfil de búsqueda: " + profile["name"])
-        print("Ahora indica los cargos que quieres buscar con estas mismas preferencias.")
         preferences = dict(profile["preferences"])
-        for field, label, fallback in (("role_queries", "Cargos a buscar (ejemplo: Backend Developer, Python Developer)", profile["name"]),
-                                       ("locations", "Países o ubicaciones", ""),
+        if not preferences.get("role_queries"):
+            preferences["role_queries"] = [profile["name"]]
+        print("Términos de búsqueda: " + ", ".join(preferences["role_queries"]))
+        for field, label, fallback in (("locations", "Países o ubicaciones", ""),
                                        ("languages", "Idiomas de las vacantes", "es,en"),
                                        ("must_have_skills", "Habilidades requeridas (filtro, no experiencia confirmada)", "")):
             current = preferences.get(field, [])
@@ -93,6 +93,7 @@ def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
     patch_settings(db, config_path, {"search_profile_ids": [p["id"] for p in selected],
                    "max_confirmed_submissions_per_day": quota, "max_results_per_run": results,
                    "search_interval_minutes": interval}, actor="cli")
+    print("Perfiles seleccionados para buscar: " + ", ".join(p["name"] for p in selected))
     print("Preferencias guardadas. El cupo no autoriza postulaciones; la búsqueda real y su programación siguen pendientes.")
 
 
@@ -259,9 +260,8 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                       "la tarea programada todavía debe instalarse y activarse explícitamente.")
             configure_browser(db, config_path)
             print("\n2. Tus preferencias de búsqueda")
-            print("Las guardamos en un perfil de búsqueda: un grupo de preferencias para encontrar empleo.")
-            print("El nombre es una etiqueta que tú eliges, como 'Desarrollo remoto'. Después indicarás los cargos a buscar.")
-            print("Un solo perfil puede incluir varios cargos; normalmente basta con uno para empezar.")
+            print("Cada perfil representa un cargo a buscar y sus preferencias, por ejemplo 'Backend Developer'.")
+            print("Su nombre se usa como término de búsqueda. Después elegirás los perfiles que quieras utilizar.")
             profiles = [p for p in list_profiles(db) if p["active"]]
             profile_id = None
             if profiles:
@@ -277,17 +277,17 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                         print("Elige un número de la lista.")
             if profile_id is None:
                 while True:
-                    name = ask("Nombre para estas preferencias (por ejemplo, Desarrollo remoto)", "Principal")
-                    if len(name) <= 200:
+                    name = ask("¿Qué cargo quieres buscar? Será el nombre del perfil (ej. Backend Developer)")
+                    if name and len(name) <= 200:
                         break
-                    print("Usa un nombre de hasta 200 caracteres.")
+                    print("Escribe un cargo de entre 1 y 200 caracteres.")
                 print("Puedes indicar una ciudad (America/Bogota) o un desfase fijo (UTC-5). "
                       "La ciudad ajusta los cambios de horario estacionales cuando corresponden.")
                 while True:
                     timezone = ask("Zona horaria (ej. America/Bogota o UTC-5)", os.environ.get("TZ", "UTC"))
                     try:
                         timezone = normalize_timezone(timezone)
-                        profile_id = add_profile(db, name, timezone, {})
+                        profile_id = add_profile(db, name, timezone, {"role_queries": [name]})
                         break
                     except ValueError as exc:
                         print(str(exc))

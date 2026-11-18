@@ -55,11 +55,13 @@ sigue formando parte del alcance; no se considera terminada por figurar en el as
 
 - **Perfiles**: nombre, cargos, roles alternativos, seniority, años verificados, palabras clave obligatorias/excluidas, stack, idiomas, países, zonas horarias, remoto/híbrido/presencial, piso salarial, divisa y período, tipos de contrato, empresas excluidas, nivel de inglés, CV preferidos.
 
-En el onboarding, **perfil de búsqueda** significa un grupo de preferencias guardadas;
-su nombre es una etiqueta del propietario. Los **cargos** son los títulos que se
-buscarán dentro de ese grupo y comparten sus filtros. Un único perfil puede contener
-varios cargos. Explicar esta relación con un ejemplo antes de pedir nombres; los
-perfiles adicionales son opcionales y se usan para preferencias diferentes.
+En el onboarding simplificado, **perfil de búsqueda** define el cargo buscado y sus
+preferencias. Usar su nombre como término de búsqueda y no volver a pedir una lista
+de títulos/cargos. Conservar consultas personalizadas ya guardadas por compatibilidad.
+Cada perfil seleccionado representa una búsqueda con filtros propios. La selección
+se guarda explícitamente; el estado `active` indica disponibilidad, no ejecución de
+búsquedas ni programación habilitada. La búsqueda automática sigue siendo un requisito
+pendiente mientras el proveedor y su planificación no estén implementados y probados.
 - **Búsqueda**: Google como opción seleccionada, dominios preferidos, consultas generadas, volumen por corrida, frecuencia, días/horas permitidos, antigüedad máxima, número máximo de páginas; alternativa con proveedor autorizado.
 - **Evaluación**: umbral mínimo, reglas duras (salario, ubicación, modalidad), cantidad máxima diaria de envíos, límite de gasto en LLM, política por dominio/plataforma.
 - **Documentación**: directorio fuente de CV, directorio generado, idioma de CV, plantilla, carta opcional; nunca sobrescribir originales.

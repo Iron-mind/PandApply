@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pandapply.configuration import patch_settings, read_settings
 from pandapply.discovery import Candidate, ProfileCriteria, evaluate
-from pandapply.onboarding import run
+from pandapply.onboarding import configure_search, run
 from pandapply.profiles import add_profile, list_profiles
 from pandapply.storage import connect, migrate
 
@@ -68,8 +68,8 @@ def test_bootstrap_installs_and_launches_using_only_its_virtualenv(tmp_path, mon
 def test_full_setup_saves_search_preferences_before_offering_dashboard(tmp_path, monkeypatch):
     monkeypatch.setattr("pandapply.onboarding.discover", no_hermes)
     answers(monkeypatch, ["1", "", "3", "Backend", "UTC", "", "s", "QA", "1,2",
-                          "Backend Engineer", "Colombia", "es,en", "Python", "remote, hybrid y onsite", "2000",
-                          "QA Engineer", "Colombia", "es", "Testing", "hybrid", "1500",
+                          "Colombia", "es,en", "Python", "remote, hybrid y onsite", "2000",
+                          "Colombia", "es", "Testing", "hybrid", "1500",
                           "3", "12", "120", "n", "s"])
     observed = []
 
@@ -82,6 +82,7 @@ def test_full_setup_saves_search_preferences_before_offering_dashboard(tmp_path,
             assert not settings.auto_apply_enabled and not settings.search_enabled
             profile = next(p for p in list_profiles(db) if p["name"] == "Backend")
             assert profile["preferences"]["work_mode"] == ["remote", "hybrid", "onsite"]
+            assert profile["preferences"]["role_queries"] == ["Backend"]
             assert db.execute("SELECT count(*) FROM knowledge_claims").fetchone()[0] == 0
 
     monkeypatch.setattr("pandapply.onboarding.dashboard", panel)
@@ -127,7 +128,7 @@ def test_invalid_timezone_reasks_only_timezone_and_accepts_utc_offset(tmp_path, 
     monkeypatch.setattr("builtins.input", answer)
     path = tmp_path / "data.db"
     assert run(path) == 0
-    assert sum("Nombre para estas preferencias" in prompt for prompt in prompts) == 1
+    assert sum("¿Qué cargo quieres buscar?" in prompt for prompt in prompts) == 1
     assert sum("Zona horaria (ej." in prompt for prompt in prompts) == 2
     with connect(path) as db:
         assert db.execute("SELECT timezone FROM master_profile").fetchone()[0] == "Etc/GMT+5"
@@ -149,3 +150,26 @@ def test_setup_configures_gmail_access_without_enabling_real_dispatch(tmp_path, 
         assert settings.gmail_enabled and settings.gmail_reply_enabled and settings.dry_run
         assert db.execute("SELECT count(*) FROM reply_attempts").fetchone()[0] == 0
         assert db.execute("SELECT count(*) FROM scheduled_jobs").fetchone()[0] == 0
+
+
+def test_search_setup_preserves_existing_queries_and_only_selects_chosen_profiles(tmp_path, monkeypatch):
+    path = tmp_path / "data.db"
+    migrate(path)
+    with connect(path) as db:
+        backend = add_profile(db, "Backend", "UTC", {"role_queries": ["Backend Engineer", "API Developer"]})
+        qa = add_profile(db, "QA", "UTC", {})
+        replies = iter(["", "1", "", "es", "", "any", "0", "2", "10", "60"])
+        prompts = []
+
+        def answer(prompt):
+            prompts.append(prompt)
+            return next(replies)
+
+        monkeypatch.setattr("builtins.input", answer)
+        configure_search(db, tmp_path / "config.json", backend)
+        settings = read_settings(db, tmp_path / "config.json")
+        assert settings.search_profile_ids == [backend] and not settings.search_enabled
+        profiles = {p["id"]: p for p in list_profiles(db)}
+        assert profiles[backend]["preferences"]["role_queries"] == ["Backend Engineer", "API Developer"]
+        assert profiles[qa]["active"]
+        assert not any("Cargos a buscar" in prompt or "títulos" in prompt for prompt in prompts)

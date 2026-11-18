@@ -112,9 +112,9 @@ def render_panel(*, view: str, selected_id: str | None, query: str, profiles: li
     detail_panel = "<section class='panel'><div class='panel-head'><div><h3>Detalles del perfil</h3><p>Preferencias y habilidades configuradas.</p></div></div>" + detail + "</section>"
     split = f"<div class='split'>{list_panel}{detail_panel}</div>"
     create_form = ("<section class='panel config-card' id='crear-perfil'><h3>Crear perfil</h3>"
-                   "<p>Un perfil agrupa cargos que comparten preferencias. Puedes empezar con uno.</p>"
+                   "<p>Usa el cargo que buscas como nombre del perfil y configura sus preferencias.</p>"
                    f"<form method='post' action='/profiles'><input type='hidden' name='csrf' value='{csrf}'>"
-                   "<label>Nombre <input name='name' required maxlength='200' placeholder='Ej. Desarrollo remoto'></label>"
+                   "<label>Cargo o nombre del perfil <input name='name' required maxlength='200' placeholder='Ej. Backend Developer'></label>"
                    "<label>Zona horaria <input name='timezone' value='UTC' placeholder='America/Bogota o UTC-5' required></label>"
                    "<button class='btn btn-primary'>Crear perfil</button></form></section>")
     hero = ("<div class='hero'><div class='hero-content'><span class='hero-kicker'>✧ TU ASISTENTE DE BÚSQUEDA</span>"

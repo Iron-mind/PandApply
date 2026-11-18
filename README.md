@@ -29,7 +29,7 @@ El asistente te guía para:
    Con la cuenta guardada, el asistente pide filtro, límite de correos, intervalo y permisos (deshabilitado, consulta o respuestas con aprobación). Guarda la configuración sin desactivar el modo de simulación ni activar una tarea programada.
    El asistente también permite elegir navegador administrado por Hermes o conexión local CDP a un navegador existente y comprobarlo. La prueba administrada utiliza un formulario local con datos ficticios. La comprobación CDP solo verifica que la conexión responde; la automatización de ese navegador sigue pendiente. Puedes dejarlo para después.
 3. Elegir o crear un perfil profesional y registrar un CV PDF/DOCX, que también puedes agregar después.
-4. Elegir los perfiles que buscarán vacantes, cargos, ubicaciones, idiomas, habilidades como filtros, modalidad y piso salarial.
+4. Elegir los perfiles que usarás para buscar y configurar ubicaciones, idiomas, habilidades como filtros, modalidad y piso salarial. El cargo se toma del nombre del perfil; no se vuelve a preguntar.
 5. Elegir el máximo diario de postulaciones, el volumen de evaluación y la frecuencia. Guardar esos valores no activa postulaciones ni crea un cron.
 6. Ofrecer un saludo piloto a tu propio WhatsApp mediante Hermes, con confirmación del número y del mensaje. El intento queda guardado para evitar reenvíos ciegos. La recepción automática de tu respuesta y el inicio de la primera búsqueda real siguen pendientes.
 7. Mostrar lo configurado y lo pendiente y, al final, ofrecer iniciar el panel local. La terminal muestra su dirección, usuario y contraseña; Ctrl+C lo detiene.
@@ -38,7 +38,9 @@ SQLite se valida automáticamente durante el asistente (integridad, relaciones y
 
 Los filtros de ubicación e idioma requieren datos explícitos de la vacante (`locations` y `languages` como listas). Si esos datos faltan, la evaluación exige revisión manual en lugar de ignorar el filtro. Las ubicaciones se comparan por nombre normalizado; los idiomas usan códigos como `es` o `en`.
 
-**¿Qué es un perfil de búsqueda?** Es un grupo de preferencias guardadas: modalidad, ubicación, salario y otros filtros. Su nombre es una etiqueta que eliges, por ejemplo «Desarrollo remoto». Dentro puedes buscar varios **cargos**, como «Backend Developer» y «Python Developer», que compartirán esos filtros. Normalmente basta un perfil; crea otro cuando quieras preferencias distintas, por ejemplo para buscar consultoría presencial. La configuración o perfil de Hermes, por su parte, identifica las conexiones de Hermes que reutiliza PandApply.
+**¿Qué es un perfil de búsqueda?** Define el cargo que buscas y sus preferencias: modalidad, ubicación, salario y otros filtros. Por ejemplo, un perfil «Backend Developer» prepara una búsqueda para ese cargo y un perfil «QA Engineer» prepara otra con sus propios filtros. El asistente usa el nombre como término de búsqueda sin pedirte títulos por separado. Si ya tenías consultas personalizadas guardadas, las conserva. La configuración o perfil de Hermes identifica las conexiones de Hermes que reutiliza PandApply.
+
+En el setup seleccionas qué perfiles quieres usar; crear un perfil no lo añade automáticamente a esa selección. «Activo» significa que el perfil está disponible. La búsqueda automática y su programación todavía están pendientes: ni ese estado ni la selección implican que haya búsquedas ejecutándose.
 
 La zona horaria acepta nombres de ciudades como `America/Bogota` y desfases fijos de horas completas como `UTC-5` o `UTC+3`. Un desfase fijo no cambia en verano/invierno; utiliza una ciudad para seguir esos cambios o para zonas con desfases de media hora. Si te equivocas, el asistente vuelve a pedir únicamente la zona horaria.
 
