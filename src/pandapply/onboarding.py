@@ -117,7 +117,8 @@ def configure_browser(db, config_path: Path) -> None:
         print("Habilita la conexión de depuración local de Chrome/Edge. La comprobación consulta solo su estado.")
         while True:
             try:
-                patch["browser_cdp_endpoint"] = cdp_endpoint(ask("Dirección CDP local", settings.browser_cdp_endpoint or "http://127.0.0.1:9222"))
+                patch["browser_cdp_endpoint"] = cdp_endpoint(ask("Dirección CDP local (IP:puerto o URL)", settings.browser_cdp_endpoint or "http://127.0.0.1:9222"))
+                print("Dirección reconocida: " + patch["browser_cdp_endpoint"])
                 break
             except ValueError as exc:
                 print(str(exc))

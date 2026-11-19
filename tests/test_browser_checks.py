@@ -11,6 +11,17 @@ from pandapply.onboarding import configure_browser
 from pandapply.storage import connect, migrate
 
 
+@pytest.mark.parametrize(("entered", "normalized"), [
+    ("127.0.0.1:54723", "http://127.0.0.1:54723"),
+    (" localhost:54723 ", "http://127.0.0.1:54723"),
+    ("http://127.0.0.1:54723/", "http://127.0.0.1:54723"),
+    ("[::1]:54723", "http://[::1]:54723"),
+    ("//127.0.0.1:54723", "http://127.0.0.1:54723"),
+])
+def test_local_cdp_address_can_omit_http(entered, normalized):
+    assert cdp_endpoint(entered) == normalized
+
+
 @contextmanager
 def local_browser(*, redirect=False):
     requests = []
@@ -45,14 +56,15 @@ def local_browser(*, redirect=False):
 
 def test_cdp_probe_reads_only_local_version_and_never_follows_redirects():
     with local_browser() as (endpoint, requests):
-        assert probe_cdp(endpoint)["status"] == "cdp_reachable"
+        assert probe_cdp(endpoint.removeprefix("http://"))["status"] == "cdp_reachable"
         assert requests == ["/json/version"]
     with local_browser(redirect=True) as (endpoint, requests):
         with pytest.raises(ValueError, match="comprobar"):
             probe_cdp(endpoint)
         assert requests == ["/json/version"]
     for endpoint in ("https://example.com:9222", "http://192.0.2.1:9222", "file:///tmp/browser",
-                     "http://user:password@127.0.0.1:9222", "http://127.0.0.1:9222/arbitrary"):
+                     "http://user:password@127.0.0.1:9222", "http://127.0.0.1:9222/arbitrary",
+                     "192.0.2.1:9222", "user:password@127.0.0.1:9222", "127.0.0.1:65536"):
         with pytest.raises(ValueError):
             cdp_endpoint(endpoint)
 
@@ -61,7 +73,7 @@ def test_browser_setup_persists_selection_and_precise_check_scope(tmp_path, monk
     path = tmp_path / "data.db"
     migrate(path)
     with local_browser() as (endpoint, _):
-        replies = iter(["2", endpoint, "s"])
+        replies = iter(["2", endpoint.removeprefix("http://"), "s"])
         monkeypatch.setattr("builtins.input", lambda prompt: next(replies))
         with connect(path) as db:
             configure_browser(db, tmp_path / "config.json")

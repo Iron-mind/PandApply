@@ -87,6 +87,8 @@ Si Gmail y WhatsApp ya están configurados en Hermes, el setup informa de la aut
 
 El asistente resuelve internamente el Python y Google Workspace de Hermes; no pide sus rutas técnicas. Reconoce tanto los entornos tradicionales `.venv`/`venv` como el entorno seleccionado por el administrador de paquetes de Hermes bajo `installs`. Si esa instalación está incompleta o no es compatible, deja Gmail pendiente con un mensaje y permite continuar con las funciones locales. Las opciones de rutas anteriores quedan disponibles para configuración avanzada.
 
+Para un navegador existente, la dirección CDP admite `127.0.0.1:54723` o `http://127.0.0.1:54723`: el asistente agrega `http://` cuando hace falta y muestra la dirección reconocida. El puerto debe corresponder a la conexión CDP de tu navegador. Reconocer el formato y comprobar que el navegador responde son pasos separados.
+
 Con las rutas detectadas, `pandapply gmail search-real --query CONSULTA` ya no necesita repetirlas. Tras guardar la cuenta y consulta en el panel, `pandapply run mail` utiliza esos valores. Las credenciales siguen administradas por Hermes; cambiar el perfil de Hermes después del setup no cambia el perfil guardado en PandApply.
 
 `pandapply setup --verify-gmail` permite comprobar la autorización existente consultando únicamente la identidad de la cuenta en Gmail y guardar su dirección principal. Puede refrescar el token mediante Hermes, pero no inicia un nuevo emparejamiento ni lee mensajes. Si la cuenta difiere de la configurada, conserva esta y devuelve un error. Esta comprobación opcional no se combina con `--dry-run` y no habilita el seguimiento ni las respuestas. Se ha probado con un proveedor simulado; requiere una prueba funcional con la cuenta del usuario.

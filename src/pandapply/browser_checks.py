@@ -11,7 +11,10 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 
 def cdp_endpoint(value: str) -> str:
     try:
-        url = urlsplit(value.strip())
+        value = value.strip()
+        if "://" not in value:
+            value = "http:" + value if value.startswith("//") else "http://" + value
+        url = urlsplit(value)
         if (url.scheme != "http" or url.hostname not in ("127.0.0.1", "localhost", "::1")
                 or not url.port or url.username or url.password or url.path not in ("", "/")
                 or url.query or url.fragment):
@@ -19,7 +22,7 @@ def cdp_endpoint(value: str) -> str:
         host = "[::1]" if url.hostname == "::1" else "127.0.0.1"
         return urlunsplit(("http", f"{host}:{url.port}", "", "", ""))
     except ValueError as exc:
-        raise ValueError("Usa una conexión local como http://127.0.0.1:9222, sin usuario ni contraseña") from exc
+        raise ValueError("Usa una dirección local como 127.0.0.1:9222 o http://127.0.0.1:9222, sin usuario ni contraseña") from exc
 
 
 class NoRedirects(HTTPRedirectHandler):
