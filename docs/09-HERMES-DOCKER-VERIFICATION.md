@@ -120,6 +120,11 @@ remotos; no prueban control de un navegador personal real.
 Hermes: login, navegación, creación, edición y eliminación de un perfil ficticio,
 persistencia en SQLite y vista móvil sin desbordamiento horizontal. Las capturas
 usan exclusivamente datos sintéticos y pueden guardarse en `/artifacts` del contenedor.
+La variante Panda Oriental verifica además el cambio de nombre, ubicaciones,
+idiomas, modalidades múltiples y salario mediante el formulario real, y confirma
+la recarga de los valores guardados. Incluye capturas del resumen y del editor
+en escritorio y móvil, tipografía Outfit local y botones jade. Se ejecuta sin red,
+sin credenciales del usuario ni acceso a sus sesiones de navegador.
 
 El arranque en segundo plano se comprobó con un proceso real en Windows y mediante
 `scripts/easy_setup_smoke.py` en Linux sin red: el comando de arranque termina,

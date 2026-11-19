@@ -50,20 +50,33 @@ def main() -> int:
                 f"Path({(artifacts + '/panel-desktop.png')!r}).write_bytes(base64.b64decode(cdp('Page.captureScreenshot', format='png')['data']))\n"
                 "js(\"document.querySelectorAll('nav a')[1].click(); 'clicked'\")\ntime.sleep(0.5)\nwait_for_load()\n"
                 "assert js(\"document.querySelector('.view.active h1').textContent\") == 'Perfiles profesionales'\n"
-                "fill_input('input[name=name]', 'Perfil nuevo de prueba')\n"
+                "fill_input('form[action=\"/profiles\"] input[name=name]', 'Perfil nuevo de prueba')\n"
                 "js(\"setTimeout(() => document.querySelector('form[action=\\\"/profiles\\\"]').requestSubmit(), 100); 'submit'\")\n"
                 "for _ in range(50):\n"
                 " time.sleep(0.1)\n"
                 " if 'Perfil nuevo de prueba' in js(\"document.querySelector('.view.active').innerText\"): break\n"
                 "assert 'Perfil nuevo de prueba' in js(\"document.querySelector('.view.active').innerText\"), js('document.body.innerText')\n"
-                "js(\"document.querySelector('.view.active .profile-editor').open = true; 'opened'\")\n"
-                "fill_input('.view.active input[name=work_mode]', 'remote, hybrid')\n"
+                "fill_input('.profile-edit-form input[name=name]', 'Perfil editado de prueba')\n"
+                "fill_input('.profile-edit-form input[name=locations]', 'Bogotá, Medellín')\n"
+                "fill_input('.profile-edit-form input[name=languages]', 'es, en')\n"
+                "fill_input('.profile-edit-form input[name=salary]', '3200')\n"
+                "js(\"document.querySelectorAll('.profile-edit-form input[name=work_modes]').forEach(e => { if (['remote','hybrid'].includes(e.value)) e.click(); }); 'selected'\")\n"
                 "fill_input('.view.active input[name=skills]', 'Python')\n"
-                "js(\"setTimeout(() => document.querySelector('.view.active form[action$=\\\"/preferences\\\"]').requestSubmit(), 100); 'submit'\")\n"
+                "js(\"setTimeout(() => document.querySelector('.profile-edit-form').requestSubmit(), 100); 'submit'\")\n"
                 "for _ in range(50):\n"
                 " time.sleep(0.1)\n"
                 " if 'Remoto, Híbrido' in js(\"document.querySelector('.view.active .mini-info').innerText\"): break\n"
                 "assert 'Remoto, Híbrido' in js(\"document.querySelector('.view.active .mini-info').innerText\")\n"
+                "assert 'Cambios guardados' in js(\"document.querySelector('.profile-detail').innerText\")\n"
+                "assert js(\"document.querySelector('.profile-edit-form input[name=name]').value\") == 'Perfil editado de prueba'\n"
+                "assert js(\"document.querySelector('.profile-edit-form input[name=locations]').value\") == 'Bogotá, Medellín'\n"
+                "assert js(\"getComputedStyle(document.querySelector('.btn-primary')).backgroundColor\") == 'rgb(45, 117, 100)'\n"
+                "assert js(\"document.fonts.check('800 16px Outfit')\")\n"
+                f"Path({(artifacts + '/panel-profile-editor.png')!r}).write_bytes(base64.b64decode(cdp('Page.captureScreenshot', format='png')['data']))\n"
+                "cdp('Emulation.setDeviceMetricsOverride', width=390, height=844, deviceScaleFactor=1, mobile=True)\n"
+                "js(\"document.querySelector('.profile-detail').scrollIntoView(); 'scrolled'\")\n"
+                "time.sleep(0.5)\nassert js('document.documentElement.scrollWidth <= window.innerWidth')\n"
+                f"Path({(artifacts + '/panel-mobile-editor.png')!r}).write_bytes(base64.b64decode(cdp('Page.captureScreenshot', format='png')['data']))\n"
                 "js(\"document.querySelector('.view.active .danger-link').click(); 'clicked'\")\n"
                 "time.sleep(0.5)\nwait_for_load()\n"
                 "js(\"document.querySelector('input[name=confirmation]').click(); 'confirmed'\")\n"
@@ -71,7 +84,7 @@ def main() -> int:
                 "for _ in range(50):\n"
                 " time.sleep(0.1)\n"
                 " if js(\"!!document.querySelector('.view.active .profile-list')\"): break\n"
-                "assert 'Perfil nuevo de prueba' not in js(\"document.querySelector('.view.active .profile-list').innerText\")\n"
+                "assert 'Perfil editado de prueba' not in js(\"document.querySelector('.view.active .profile-list').innerText\")\n"
                 "cdp('Emulation.setDeviceMetricsOverride', width=390, height=844, deviceScaleFactor=1, mobile=True)\n"
                 "time.sleep(0.5)\n"
                 "assert js('document.documentElement.scrollWidth <= window.innerWidth')\n"
@@ -84,8 +97,10 @@ def main() -> int:
                 raise RuntimeError(str(result)[:4000])
             with connect(database) as db:
                 assert db.execute("SELECT count(*) FROM professional_profiles").fetchone()[0] == 4
-                profile = db.execute("SELECT active,preferences_json FROM professional_profiles WHERE name='Perfil nuevo de prueba'").fetchone()
-                assert profile["active"] == 0 and json.loads(profile["preferences_json"])["work_mode"] == ["remote", "hybrid"]
+                profile = db.execute("SELECT active,preferences_json FROM professional_profiles WHERE name='Perfil editado de prueba'").fetchone()
+                preferences = json.loads(profile['preferences_json'])
+                assert profile["active"] == 0 and preferences["work_mode"] == ["remote", "hybrid"]
+                assert preferences['locations'] == ['Bogotá', 'Medellín'] and preferences['salary_min_usd_month'] == 3200
             print(json.dumps({"panel": "passed", "navigation": "passed", "create_edit_delete_profile": "passed", "mobile": "passed"}))
         finally:
             server.should_exit = True

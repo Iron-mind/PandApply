@@ -129,7 +129,9 @@ Usa `pandapply web --status` para consultar el panel y `pandapply web --stop` pa
 
 Si tenías una pestaña abierta antes de reiniciar el panel, vuelve a abrir `/login` y usa la nueva contraseña de la terminal. Un formulario desactualizado muestra una página de recuperación; su enlace abre un formulario nuevo y no repite la operación anterior. Tras actualizar el código, reinicia el panel para que cargue la corrección.
 
-El panel incorpora el rediseño HTML aportado por el propietario: navegación lateral, resumen, perfiles con detalle y búsqueda, vacantes, decisiones, correo y configuración. Los contadores y formularios usan los datos locales guardados. Los estilos, iconos y fuentes se sirven desde PandApply y la interfaz se adapta a escritorio y móvil.
+El panel utiliza el diseño de `PandApply_Panda_Oriental.html`: tonos jade y crema, ilustración de panda, navegación lateral y tarjetas. Los contadores y formularios usan los datos locales guardados. Los estilos, iconos y fuentes se sirven desde PandApply y la interfaz se adapta a escritorio y móvil.
+
+En **Perfiles**, selecciona una tarjeta para editar el nombre, ubicaciones, idiomas, modalidades, salario y habilidades. **Más criterios y documentos** permite cambiar términos de búsqueda opcionales, seniority, experiencia requerida, palabras clave, empresas excluidas, contratos y preferencias de CV. Pulsa **Guardar cambios**; las preferencias permanecen tras reiniciar. Si dejas vacíos los términos personalizados, se usará el nombre actualizado del perfil. La experiencia requerida es un filtro de vacantes: no crea hechos confirmados ni modifica tus CV. Los campos personalizados anteriores se conservan y pueden editarse en la sección avanzada. Parte de los filtros ampliados y la selección automática de CV siguen en desarrollo.
 
 También puedes consultar `pandapply decisions list` y responder con `pandapply decisions respond ID_DE_LA_DECISIÓN approve` (o `reject`). Las decisiones anteriores limitadas al canal CLI siguen restringidas a ese canal.
 

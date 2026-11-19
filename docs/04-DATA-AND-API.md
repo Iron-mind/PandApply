@@ -36,6 +36,31 @@ Bearer y admite `if_version` para detectar ediciones concurrentes. Repetirlo no 
 otro evento. `GET /profiles` excluye retirados; `include_inactive=true` los incluye.
 Los formularios HTML de eliminación usan confirmación explícita, CSRF y versión.
 
+`POST /profiles/{id}/edit` es un formulario HTML autenticado con Origin local,
+CSRF y versión obligatoria. Guarda nombre y preferencias juntos mediante
+`edit_profile`; una versión antigua devuelve HTML 409, una entrada inválida HTML
+400 conserva los valores enviados para corregirlos y ningún campo se guarda a medias.
+La ruta `/preferences` anterior se conserva por compatibilidad. No se añade una
+mutación pública al contrato `/api/v1`.
+
+El editor incluye `role_queries`, `locations`, `languages`, `work_mode`,
+`must_have_skills`, `nice_to_have_skills`, `salary_min_usd_month`, `seniority`,
+`min_verified_years`, `required_keywords`, `excluded_keywords`,
+`excluded_companies`, `contract_types`, `english_level`, `timezones`,
+`cv_directory`, `cv_language` y `preferred_cvs`. Las listas usan comas; modalidad
+usa casillas múltiples. En blanco, salario y años dejan de ser restricciones.
+Sin modalidades marcadas se aceptan todas. La consulta vacía usa el nombre del
+perfil; al renombrarlo se actualiza la consulta derivada y se conservan consultas
+personalizadas. Otros campos anteriores se conservan y tienen un editor JSON
+avanzado que no puede sobrescribir los controles normales.
+
+Los criterios ampliados se almacenan como preferencias; su presencia no implica
+que el evaluador aplique todos ni que se hayan importado documentos. No crean
+`knowledge_claims`, no alteran CV ni activan búsqueda o envío. `timezones` describe
+las vacantes, mientras la zona horaria del propietario pertenece al perfil maestro
+y no cambia al editar un perfil profesional. IDs, versión e historial son metadatos,
+no campos editables del formulario.
+
 La configuración añade `browser_mode` (`not_configured`, `hermes_managed`, `cdp`),
 `browser_cdp_endpoint` y `hermes_root`. `connector_health.browser` registra
 `not_checked`, `unavailable`, `cdp_reachable` o `sandbox_verified`. Estos dos últimos

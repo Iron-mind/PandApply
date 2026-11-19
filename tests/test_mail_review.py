@@ -369,7 +369,7 @@ def test_dashboard_real_reply_requires_origin_and_uses_fake_workspace(tmp_path):
                                                       "dry_run": False}, actor="cli")
     client = TestClient(create_app(path, "secret"), base_url="http://localhost")
     auth = ("pandapply", "secret")
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=correo", auth=auth)
     assert "owner@example.com" in page.text and "Thank you. Please suggest times." in page.text
     csrf = re.search(r"name='csrf' value='([^']+)'", page.text).group(1)
     data = {"csrf": csrf, "hermes_python": sys.executable, "workspace_script": str(script)}

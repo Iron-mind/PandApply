@@ -30,9 +30,10 @@ from pandapply.mail import (
 from pandapply.mail_send import send_approved
 from pandapply.memory import propose_skill
 from pandapply.panel import render_action_page, render_panel
+from pandapply.profile_editor import parse_profile_form, render_profile_editor
 from pandapply.profiles import add_profile, delete_profile, edit_profile, list_profiles
 from pandapply.storage import connect
-from pandapply.work_modes import work_mode_label, work_mode_preference
+from pandapply.work_modes import work_mode_preference
 
 security = HTTPBasic(auto_error=False)
 
@@ -137,7 +138,7 @@ def create_app(database: Path, token: str) -> FastAPI:
 
     @app.get("/assets/fonts/{filename}")
     def panel_font(filename: str):
-        if filename not in ("dm-sans.woff2", "plus-jakarta-sans.woff2"):
+        if filename not in ("dm-sans.woff2", "plus-jakarta-sans.woff2", "outfit.woff2", "panda-cjk.woff2"):
             raise HTTPException(status_code=404)
         return Response(files("pandapply").joinpath("assets", "fonts", filename).read_bytes(), media_type="font/woff2")
 
@@ -146,15 +147,8 @@ def create_app(database: Path, token: str) -> FastAPI:
         return HTMLResponse(
             "<!doctype html><html lang='es'><head><meta charset='utf-8'>"
             "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-            "<title>Iniciar sesión — PandApply</title><link rel='stylesheet' href='/assets/panel.css'><style>"
-            "body{font-family:'DM Sans',system-ui,sans-serif;background:#f7f8fc;color:#1e2435;margin:0;"
-            "min-height:100vh;display:grid;place-items:center}main{background:white;padding:2rem;"
-            "border-radius:1rem;width:min(24rem,80vw);box-shadow:0 8px 32px #18232d15}"
-            "h1{margin-top:0}label{display:block;margin:1rem 0}input{box-sizing:border-box;display:block;"
-            "width:100%;padding:.7rem;margin-top:.4rem;border:1px solid #aab4bd;border-radius:.4rem}"
-            "button{width:100%;padding:.8rem;background:#6958f5;color:white;border:0;"
-            "border-radius:.4rem;font:inherit;cursor:pointer}[role=alert]{color:#a12020}</style></head>"
-            "<body><main><h1>PandApply</h1><h2>Iniciar sesión</h2>"
+            "<title>Iniciar sesión — PandApply</title><link rel='stylesheet' href='/assets/panel.css'></head>"
+            "<body class='login-page'><main class='panel config-card'><h1>PandApply</h1><h2>Iniciar sesión</h2>"
             "<p>Usa la contraseña que aparece en la terminal donde abriste el panel.</p>"
             + error + "<form method='post' action='/login'>"
             f"<input type='hidden' name='csrf' value='{csrf_secret}'>"
@@ -327,7 +321,8 @@ def create_app(database: Path, token: str) -> FastAPI:
         return [{"id": row["connector_id"], "status": row["state"], "detail": row["detail_redacted"]} for row in rows]
 
     @app.get("/", response_class=HTMLResponse, dependencies=[Depends(authorized)])
-    def dashboard(view: str = "inicio", selected_id: Annotated[str | None, Query(alias="profile")] = None, q: str = ""):
+    def dashboard(view: str = "inicio", selected_id: Annotated[str | None, Query(alias="profile")] = None,
+                  q: str = "", saved: bool = False):
         with closing(connect(database)) as db:
             rows = list_profiles(db)
             job_count = db.execute("SELECT count(*) FROM job_postings").fetchone()[0]
@@ -358,27 +353,13 @@ def create_app(database: Path, token: str) -> FastAPI:
         profile_forms = {}
         for profile in rows:
             profile_id = html.escape(profile["id"], quote=True)
-            preferences = profile["preferences"]
-            skills = preferences.get("must_have_skills", [])
-            skills_text = ", ".join(value for value in skills if isinstance(value, str)) if isinstance(skills, list) else ""
-            mode = work_mode_label(preferences.get("work_mode"))
-            salary = preferences.get("salary_min_usd_month", "")
             profile_forms[profile["id"]] = (
-                "<details class='profile-editor'><summary>Editar preferencias y habilidades</summary><div class='editor-content'>"
+                "<div class='profile-editor'>" + render_profile_editor(profile, csrf_secret)
+                + "<details class='advanced-options'><summary>Proponer un dato para mi experiencia</summary>"
                 f"<form method='post' action='/profiles/{profile_id}/skills'>"
                 f"<input type='hidden' name='csrf' value='{csrf_secret}'>"
                 "<label>Habilidad <input name='skill' required maxlength='200'></label> "
-                "<button>Proponer habilidad</button></form>"
-                f"<form method='post' action='/profiles/{profile_id}/preferences'>"
-                f"<input type='hidden' name='csrf' value='{csrf_secret}'>"
-                f"<input type='hidden' name='version' value='{profile['version']}'>"
-                f"<label>Habilidades obligatorias, separadas por comas <input name='skills' "
-                f"value='{html.escape(skills_text, quote=True)}'></label> "
-                f"<label>Modalidades (varias separadas por comas; any = todas) <input name='work_mode' value='{html.escape(mode, quote=True)}' "
-                "placeholder='remote, hybrid'></label> "
-                f"<label>Salario mínimo USD/mes <input name='salary' type='number' min='0' step='0.01' "
-                f"value='{html.escape(str(salary), quote=True)}'></label> "
-                "<button>Guardar preferencias</button></form></div></details><div class='detail-actions'>"
+                "<button>Proponer habilidad</button></form></details></div><div class='detail-actions'>"
                 f"<form method='post' action='/profiles/{profile_id}/fixture-discovery'>"
                 f"<input type='hidden' name='csrf' value='{csrf_secret}'>"
                 "<button>Evaluar vacantes ficticias</button></form>"
@@ -493,7 +474,7 @@ def create_app(database: Path, token: str) -> FastAPI:
                                     "pending": pending_count, "mail": mail_count, "manual_mail": manual_mail_count,
                                     "replies": replies_count}, jobs=jobs_html, decisions=decisions_markup,
                             inbox=inbox_markup, manual_mail=manual_mail_markup, replies=approved_markup,
-                            configuration=configuration)
+                            configuration=configuration, saved=saved)
 
     @app.post("/decisions/{decision_id}/respond", dependencies=[Depends(authorized)])
     def respond_from_dashboard(request: Request, decision_id: str, action: Annotated[str, Form()],
@@ -588,6 +569,29 @@ def create_app(database: Path, token: str) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return RedirectResponse(url="/?view=perfiles&profile=" + quote(profile_id, safe=""), status_code=303)
+
+    @app.post("/profiles/{profile_id}/edit", dependencies=[Depends(authorized)])
+    async def edit_profile_from_dashboard(request: Request, profile_id: str,
+                                          csrf: Annotated[str, Form()], version: Annotated[int, Form()]):
+        check_form(request, csrf)
+        form = await request.form()
+        with closing(connect(database)) as db:
+            profile = next((p for p in list_profiles(db) if p['id'] == profile_id), None)
+            if profile is None:
+                raise HTTPException(status_code=404, detail="Profile not found")
+            try:
+                name, preferences = parse_profile_form(profile, form)
+                edit_profile(db, profile_id, name=name, preferences=preferences, expected_version=version)
+            except ValueError as exc:
+                conflict = 'another operation' in str(exc)
+                message = ('El perfil cambió en otra pestaña. Vuelve a abrirlo antes de guardar.'
+                           if conflict else str(exc))
+                content = ("<p role='alert'>No se guardaron los cambios. " + html.escape(message) + "</p>"
+                           + f"<p><a href='/?view=perfiles&amp;profile={html.escape(quote(profile_id, safe=''))}'>Volver al perfil</a></p>")
+                if not conflict:
+                    content += render_profile_editor(profile, csrf_secret, submitted=form)
+                return HTMLResponse(render_action_page('Revisar perfil', content), status_code=409 if conflict else 400)
+        return RedirectResponse(url="/?view=perfiles&profile=" + quote(profile_id, safe="") + "&saved=1#editar-perfil", status_code=303)
 
     @app.post("/profiles/{profile_id}/fixture-discovery", dependencies=[Depends(authorized)])
     def run_fixture_from_dashboard(request: Request, profile_id: str, csrf: Annotated[str, Form()]):

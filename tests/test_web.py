@@ -31,10 +31,13 @@ def test_redesigned_panel_uses_live_profiles_navigation_and_local_assets(tmp_pat
     assert client.get("/?view=unknown", auth=auth).status_code == 200
     stylesheet = client.get("/assets/panel.css")
     assert stylesheet.status_code == 200 and "text/css" in stylesheet.headers["content-type"]
-    assert "--purple:#6958f5" in stylesheet.text
+    assert "--jade:#2d7564" in stylesheet.text and "--bg:#f6f3eb" in stylesheet.text
     assert "fonts.googleapis.com" not in page.text + stylesheet.text
     font = client.get("/assets/fonts/dm-sans.woff2")
     assert font.status_code == 200 and font.content.startswith(b"wOF2")
+    assert client.get("/assets/fonts/outfit.woff2").content.startswith(b"wOF2")
+    assert client.get("/assets/fonts/panda-cjk.woff2").content.startswith(b"wOF2")
+    assert "ENCUENTRA TU CAMINO" in page.text and "PandApply — Panda Oriental" in page.text
     assert client.get("/assets/fonts/not-a-font").status_code == 404
     assert "style-src 'self'" in page.headers["content-security-policy"]
 
@@ -188,7 +191,7 @@ def test_dashboard_decision_requires_csrf_and_same_origin(tmp_path):
         proposal = propose_skill(db, profile, "Python<script>")
     client = TestClient(create_app(path, "secret"), base_url="http://localhost")
     auth = ("pandapply", "secret")
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=decisiones", auth=auth)
     assert "Python&lt;script&gt;" in page.text
     csrf = re.search(r"name='csrf' value='([^']+)'", page.text).group(1)
     key = re.search(r"name='key' value='([^']+)'", page.text).group(1)
@@ -220,12 +223,13 @@ def test_dashboard_can_create_profile_and_change_config_with_csrf(tmp_path):
     skill = {"skill": "Python", "csrf": csrf}
     assert client.post(f"/profiles/{profile_id}/skills", data=skill, auth=auth,
                        headers=headers, follow_redirects=False).status_code == 303
-    assert "Guardar la habilidad: Python" in client.get("/", auth=auth).text
+    assert "Guardar la habilidad: Python" in client.get("/?view=decisiones", auth=auth).text
     preferences = {"csrf": csrf, "version": "1", "skills": "Python, SQL", "work_mode": "remote, hybrid", "salary": "2000"}
     route = f"/profiles/{profile_id}/preferences"
     assert client.post(route, data=preferences, auth=auth, headers=headers, follow_redirects=False).status_code == 303
     assert client.get("/api/v1/profiles", auth=auth).json()[0]["preferences"]["work_mode"] == ["remote", "hybrid"]
-    assert "value='remote, hybrid'" in client.get("/", auth=auth).text
+    edited = client.get("/?view=perfiles", auth=auth).text
+    assert "value='remote' checked" in edited and "value='hybrid' checked" in edited
     assert client.post(route, data=preferences, auth=auth, headers=headers, follow_redirects=False).status_code == 400
     route = f"/profiles/{profile_id}/fixture-discovery"
     assert client.post(route, data={"csrf": csrf}, auth=auth, headers=headers, follow_redirects=False).status_code == 303
@@ -268,12 +272,12 @@ def test_dashboard_suggestions_require_request_and_approval_before_fake_send(tmp
         proposal = db.execute("SELECT id FROM reply_proposals").fetchone()[0]
     assert client.post(f"/mail/replies/{proposal}/send", data={"csrf": csrf}, auth=auth,
                        headers=headers).status_code == 400
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=decisiones", auth=auth)
     key = re.search(r"name='key' value='([^']+)'", page.text).group(1)
     response = client.post(f"/decisions/{decision}/respond", data={"csrf": csrf, "key": key, "action": "approve"},
                            auth=auth, headers=headers, follow_redirects=False)
     assert response.status_code == 303
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=correo", auth=auth)
     assert "Enviar respuesta simulada" in page.text and "Thank you." in page.text
     assert "<script>alert(1)</script>" not in page.text and "&lt;script&gt;" in page.text
     response = client.post(f"/mail/replies/{proposal}/send", data={"csrf": csrf}, auth=auth,
@@ -288,14 +292,14 @@ def test_dashboard_gmail_settings_reject_stale_revision(tmp_path):
     migrate(path)
     client = TestClient(create_app(path, "secret"), base_url="http://localhost")
     auth, origin = ("pandapply", "secret"), {"Origin": "http://localhost"}
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=configuracion", auth=auth)
     csrf = re.search(r"name='csrf' value='([^']+)'", page.text).group(1)
     revision = re.search(r"name='revision' value='([^']+)'", page.text).group(1)
     assert client.patch("/api/v1/config", json={"locale": "es-CO"},
                         headers={"Authorization": "Bearer secret"}).status_code == 200
     data = {"csrf": csrf, "revision": revision, "gmail_enabled": "on", "gmail_reply_enabled": "on"}
     assert client.post("/config/gmail", data=data, auth=auth, headers=origin).status_code == 409
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=configuracion", auth=auth)
     data["revision"] = re.search(r"name='revision' value='([^']+)'", page.text).group(1)
     assert client.post("/config/gmail", data=data, auth=auth, headers=origin, follow_redirects=False).status_code == 303
     config = client.get("/api/v1/config", auth=auth).json()
@@ -307,7 +311,7 @@ def test_dashboard_mail_monitor_requires_origin_and_current_revision(tmp_path):
     migrate(path)
     client = TestClient(create_app(path, "secret"), base_url="http://localhost")
     auth, origin = ("pandapply", "secret"), {"Origin": "http://localhost"}
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=configuracion", auth=auth)
     data = {"csrf": re.search(r"name='csrf' value='([^']+)'", page.text).group(1),
             "revision": re.search(r"name='revision' value='([^']+)'", page.text).group(1),
             "gmail_account": "owner@example.test", "gmail_query": "<script>alert(1)</script>",
@@ -315,7 +319,7 @@ def test_dashboard_mail_monitor_requires_origin_and_current_revision(tmp_path):
     assert client.post("/config/mail-monitor", data=data, auth=auth).status_code == 403
     assert client.post("/config/mail-monitor", data=data, auth=auth, headers=origin, follow_redirects=False).status_code == 303
     assert client.post("/config/mail-monitor", data=data, auth=auth, headers=origin).status_code == 409
-    page = client.get("/", auth=auth)
+    page = client.get("/?view=configuracion", auth=auth)
     assert "<script>alert(1)</script>" not in page.text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page.text
 
