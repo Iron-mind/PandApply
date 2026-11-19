@@ -1,5 +1,14 @@
 # 04 — Modelo de datos, configuración y contratos de PandApply
 
+`pandapply connect {gmail,browser,whatsapp}` repite un paso de conexión del setup.
+Puede abrir Hermes interactivo y después actualizar `connector_health` según una
+prueba independiente. No añade endpoints HTTP ni almacena conversaciones o tokens.
+La salida exitosa del paso permite estados pendientes: no equivale a un certificado
+de conexión. `account_verified` exige identidad Gmail comprobada; WhatsApp se queda
+en `session_detected_not_verified` aunque Hermes termine correctamente. Gmail o
+navegador fallidos conservan `unavailable` o `configured_unverified`, según se hayan
+guardado solo preferencias. Las reparaciones no modifican intentos previos de envío.
+
 El panel HTML incluye `GET /login` y `POST /login` para iniciar sesión con el usuario
 `pandapply` y la contraseña temporal de la terminal. La sesión se guarda en una cookie
 opaca HttpOnly y SameSite=Strict, caduca a las 12 horas y no sobrevive al reinicio

@@ -18,6 +18,11 @@
 
 **T1.2** Implementar `pandapply setup`, `config show/edit/set`, perfiles, importación de CV PDF/DOCX, validaciones y políticas de datos confirmados; sin modificación de originales.
 
+El setup y `pandapply connect gmail/browser/whatsapp` deben ofrecer al propio
+Hermes como ayuda cuando faltan componentes o autorizaciones. Al volver del chat,
+redetectar y comprobar la integración; mantener pendiente si no hay prueba y
+conservar las autorizaciones concretas de envío como pasos separados.
+
 **T1.3** `pandapply web` con FastAPI/HTMX (pantallas de resumen, vacantes, aplicaciones, decisiones, configuración y health), token local y CORS/CSRF; API descrita en `specs/openapi.yaml`.
 
 **T1.4** Registrar un evento por transición; pruebas de coherencia y migración hacia atrás. Un usuario puede exportar datos sin tener configurado Gmail.

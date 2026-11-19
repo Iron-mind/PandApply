@@ -38,6 +38,8 @@ def main() -> int:
     setup_mode = setup.add_mutually_exclusive_group()
     setup_mode.add_argument("--wizard", action="store_true", help="Run the step-by-step setup assistant")
     setup_mode.add_argument("--non-interactive", action="store_true", help="Print a JSON report without prompting")
+    integration = sub.add_parser('connect', help='Configure or repair an integration with interactive Hermes guidance')
+    integration.add_argument('integration', choices=['gmail', 'browser', 'whatsapp'])
     profiles = sub.add_parser("profiles", help="Manage local professional profiles")
     profile_commands = profiles.add_subparsers(dest="profile_command", required=True)
     profile_list = profile_commands.add_parser("list")
@@ -219,6 +221,10 @@ def main() -> int:
 
         print(json.dumps(run_demo(), ensure_ascii=False, indent=2))
         return 0
+    if args.command == 'connect':
+        from pandapply.onboarding import connect_integration
+
+        return connect_integration(path, args.integration)
     if path.exists() and args.command in {"profiles", "memory", "run", "web", "export", "gmail", "applications", "decisions", "config", "policy", "scheduler"}:
         migrate(path)
     if args.command == "scheduler":

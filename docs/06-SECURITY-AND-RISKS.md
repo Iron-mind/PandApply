@@ -43,6 +43,13 @@ Usar Hermes; elegir `self-chat` o número bot, verificar `allowed_users`, deshab
 
 ## 8. Ejecución local y secretos
 
+La ayuda de configuración abre Hermes con argumentos literales y sin shell, perfil
+explícito y directorio de trabajo del perfil seleccionado. Conserva interacción
+humana para OAuth/QR y no usa flags de aprobación automática. PandApply no captura
+su salida ni copia credenciales. Las peticiones son fijas y limitan la ayuda a
+configurar; la prueba posterior de PandApply no confía en afirmaciones del agente.
+No se lanza en modo sin TTY para evitar autorizar mediante un agente desatendido.
+
 - Config y base SQLite con permisos de usuario; API ligada a `127.0.0.1` y protegida con token para mutaciones. Para acceso remoto futuro usar TLS + autenticación robusta, no abrir un puerto manualmente.
 - Guardar secretos en almacenamiento de Hermes o keyring del sistema, nunca en repositorio, SQLite, archivos de ejemplo o logs.
 - HTML web: escape por defecto, CSRF para formularios, Content Security Policy básica, cabeceras de seguridad, rate limiting y validación de esquema.

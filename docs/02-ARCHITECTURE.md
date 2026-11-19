@@ -120,6 +120,13 @@ Para CDP usar **loopback**, puertos efímeros controlados, sin exponer depuraci�
 
 ### Gmail
 
+El adaptador `adapters/hermes/guidance.py` abre la CLI interactiva existente para
+configurar o reparar Gmail, navegador o WhatsApp. Usa `chat -q`, perfil explícito
+y `HERMES_HOME` guardado, sin importar Hermes en el core ni capturar credenciales.
+El onboarding reanuda la detección y las pruebas deterministas al regresar. La
+implementación de Gmail comprobable hoy requiere el puente Python Google Workspace;
+la ayuda no añade automáticamente compatibilidad con otros conectores.
+
 - Primario v1: skill Google Workspace de Hermes, que prefiere `gws` cuando está disponible y puede recurrir a librerías de Google. El *bridge* lee correo mediante la interfaz aprobada por Hermes y pasa mensajes normalizados a `pandapply gmail ingest`.
 - La CLI y el core no almacenan refresh tokens; el conector los gestiona. Cualquier resultado de Gmail se persiste en versión mínima (ID de mensaje/hilo, fecha, hash, clasificación, encabezados seleccionados, extracto redactado) y se referencia para consultar el contenido de nuevo.
 - Polling por cron; usar cursor de historial/ventana con overlap y deduplicación por `gmail_message_id`; no asumir que la bandeja se entrega una sola vez.

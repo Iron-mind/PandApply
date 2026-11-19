@@ -70,6 +70,23 @@ No verifica el comportamiento de una instalación nativa Windows ni habilita por
 
 Fuente: [documentación oficial de Docker para Hermes](https://hermes-agent.nousresearch.com/docs/user-guide/docker).
 
+La configuración asistida usa `hermes --profile NOMBRE chat -q PETICION`,
+contrastado con `hermes chat --help` nativo de Windows y con el parser real de
+Hermes v0.23.2 en Docker. `scripts/hermes_guidance_contract.py` comprueba que la
+petición llega literalmente al chat, sin modo one-shot forzado, y ejecuta solo
+`chat --help` con hogares ficticios para validar selección de perfil predeterminado
+y nombrado. En Docker se ejecuta como usuario `hermes`, con red deshabilitada:
+el shim de la imagen cambia de usuario cuando se invoca desde root y no puede
+leer un directorio temporal privado creado por root. No se ejecuta ninguna
+conversación real, autorización Google, emparejamiento ni envío.
+
+Las pruebas locales de `test_hermes_guidance.py` comprueban el regreso de Hermes,
+redetección de una habilidad recién instalada, verificación Gmail, conservación de
+cuenta ante discrepancias, reparación del navegador con una comprobación acotada,
+WhatsApp sin mensajes, interrupciones y rechazo del modo sin TTY. La autorización
+de cuentas y los diálogos interactivos reales siguen requiriendo prueba funcional
+del propietario.
+
 `scripts/hermes_setup_smoke.py` verifica la detección de las rutas de Python y Google
 Workspace en esa instalación, primero sin credenciales y luego con archivos ficticios
 de Gmail y WhatsApp. Se ejecutó sin red, con un directorio temporal y sin montar

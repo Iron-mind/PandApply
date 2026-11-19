@@ -1,10 +1,49 @@
-# Gmail, navegador y panel en segundo plano
+# Configuración asistida por Hermes, navegador y panel
+
+## Pedir a Hermes que prepare o repare las integraciones
+
+El setup ofrece ayuda de Hermes para Gmail, navegador y WhatsApp cuando faltan
+componentes o autorizaciones. Gmail y navegador tienen una opción **4** de ayuda;
+si una comprobación falla, también se ofrece reparación. WhatsApp pregunta por
+configuración o reparación antes del saludo piloto, que sigue siendo independiente.
+
+Para repetir solo una conexión, sin rehacer perfiles ni enviar un saludo:
+
+```sh
+pandapply connect gmail
+pandapply connect browser
+pandapply connect whatsapp
+```
+
+La ayuda ejecuta el Hermes detectado con `--profile NOMBRE chat -q PETICION`, fija
+`HERMES_HOME` al perfil guardado y mantiene la entrada/salida de la terminal.
+Es una conversación normal: el propietario interactúa con Hermes, completa las
+autorizaciones y escribe `/exit` para volver a PandApply. La petición solicita
+reutilizar lo existente y ayudar a instalar los componentes faltantes mediante
+los mecanismos que la versión instalada soporte. No se capturan conversaciones,
+QR ni tokens en PandApply, no se usa `--yolo` y no se instala otro agente ni un
+daemon de configuración.
+
+Una solicitud manual equivalente es `hermes chat -q "Configura Gmail para PandApply"`.
+La forma `hermes configurar gmail` expresa la intención, pero no es un subcomando
+que PandApply añada a Hermes. El flujo `chat -q` está verificado contra la CLI real
+y su [documentación oficial](https://hermes-agent.nousresearch.com/docs/reference/cli-commands#hermes-chat).
+Con entrada/salida sin TTY, Hermes trataría la consulta como una sola ejecución;
+por eso PandApply solicita usar una terminal interactiva y no inicia la conversación.
+
+Al volver, PandApply redetecta intérprete, habilidad y sesiones sin cambiar de
+cuenta silenciosamente. Comprueba Gmail con `getProfile`; comprueba navegador
+con su prueba local o CDP. Una sesión WhatsApp detectada sigue sin demostrar
+gateway ni entrega. El código de salida cero de Hermes no prueba una conexión.
+Si falla o se cancela, conserva los datos guardados y permite continuar pendiente.
+No activa cron, postulaciones ni respuestas Gmail y no repite saludos inciertos.
 
 ## Gmail: un paso visible incluso sin credenciales detectadas
 
-El setup siempre ofrece tres opciones: comprobar la cuenta conectada en Hermes,
-guardar la cuenta y sus preferencias para conectarla después, o posponer Gmail.
-Si no encuentra una autorización, propone configurar la cuenta; no salta las preguntas.
+El setup siempre ofrece comprobar la cuenta conectada, guardar preferencias,
+posponer Gmail o pedir a Hermes que configure/repare la conexión. Con Hermes
+disponible y sin credenciales detectadas, la ayuda es la opción predeterminada.
+Si la comprobación falla, ofrece ayuda y vuelve a comprobar una vez al regresar.
 
 Al configurar pide dirección principal, filtro de mensajes, volumen por consulta,
 intervalo y permisos: deshabilitado, solo consulta o respuestas con aprobación.
@@ -12,12 +51,17 @@ Guardar estos datos no comprueba OAuth ni habilita la ejecución programada.
 El diagnóstico distingue `account_verified` de `configured_unverified`.
 
 La autorización pertenece a Google Workspace de Hermes. Para una conexión nueva,
-abre Hermes y solicita configurar Google Workspace para Gmail; sigue su autorización
-Google y vuelve al setup para comprobarla. PandApply no pide contraseñas de Google
+elige la ayuda de Hermes en el setup, sigue su autorización Google y vuelve con
+`/exit` para comprobarla. PandApply no pide contraseñas de Google
 ni copia tokens. Otros conectores Gmail de Hermes pueden necesitar un adaptador
 compatible; su existencia no garantiza que el puente Google Workspace esté autorizado.
 
 ## Navegador existente: qué significa CDP
+
+La opción de ayuda permite a Hermes revisar las dependencias del navegador o
+preparar Chrome/Edge. Después selecciona en PandApply la conexión preparada.
+Si es CDP, introduce el endpoint local que Hermes te indique. La prueba posterior
+es la que determina el estado; configurar mediante chat no prueba un portal real.
 
 CDP es **Chrome DevTools Protocol**: una conexión que permite a herramientas
 comunicarse con Chrome o Edge. Una ventana abierta normalmente no ofrece por sí

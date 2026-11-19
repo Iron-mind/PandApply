@@ -46,6 +46,7 @@
 | FR-26 | Configuración antes del panel | Validar SQLite, perfiles de búsqueda, filtros, frecuencia, volumen y cupo diario antes de ofrecer el panel |
 | FR-27 | Piloto de primera búsqueda | Saludo por WhatsApp al propietario; respuesta autenticada y contextual inicia una sola búsqueda, sin habilitar postulaciones |
 | FR-28 | Login visible | El enlace local abre un formulario de sesión; credenciales claras en la terminal y cierre de sesión |
+| FR-29 | Configuración asistida por Hermes | Si Gmail, navegador o WhatsApp faltan o fallan, ofrecer una conversación en el Hermes del usuario para instalar/configurar/autorizar; al regresar comprobar de nuevo sin cambiar de cuenta ni repetir envíos |
 
 Los detalles añadidos por el propietario y el estado verificable se mantienen en
 [10-OWNER-REQUIREMENTS.md](10-OWNER-REQUIREMENTS.md). Una función pendiente allí

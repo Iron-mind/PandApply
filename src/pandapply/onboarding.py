@@ -8,6 +8,7 @@ from contextlib import closing
 from email.utils import parseaddr
 from pathlib import Path
 
+from pandapply.adapters.hermes.guidance import launch_setup
 from pandapply.adapters.hermes.installation import discover
 from pandapply.browser_checks import cdp_endpoint, probe_cdp, probe_managed
 from pandapply.configuration import patch_settings, read_settings
@@ -40,6 +41,76 @@ def number(label: str, default: int, minimum: int, maximum: int) -> int:
         if value.isdigit() and minimum <= int(value) <= maximum:
             return int(value)
         print(f"Introduce un número entre {minimum} y {maximum}.")
+
+
+def connector_state(db, component: str, state: str, detail: str) -> None:
+    with db:
+        db.execute("INSERT INTO connector_health (connector_id,state,checked_at,detail_redacted) VALUES (?,?,?,?) "
+                   "ON CONFLICT(connector_id) DO UPDATE SET state=excluded.state,checked_at=excluded.checked_at,"
+                   "detail_redacted=excluded.detail_redacted", (component, state, now(), detail))
+
+
+def refresh_hermes(db, config_path: Path, *, root=None, interpreter=None) -> dict:
+    settings = read_settings(db, config_path)
+    report = discover(home=Path(settings.hermes_home) if settings.hermes_home else None,
+                      root=root or (Path(settings.hermes_root) if settings.hermes_root else None), interpreter=interpreter)
+    # A repair may select a new PM environment or install a missing Workspace skill.
+    # Never let rediscovery silently select a different saved profile/account.
+    if report.get('home') and (not settings.hermes_home or
+            Path(report['home']).resolve() == Path(settings.hermes_home).resolve()):
+        patch = {key: report[field] for key, field in (
+            ('hermes_home', 'home'), ('hermes_executable', 'executable'), ('hermes_python', 'python'),
+            ('hermes_workspace_script', 'workspace_script'), ('hermes_root', 'root'))
+            if report.get(field) and report[field] != getattr(settings, key)}
+        if patch:
+            patch_settings(db, config_path, patch, actor='cli')
+    return report
+
+
+def can_assist(settings) -> bool:
+    return bool(settings.hermes_executable and Path(settings.hermes_executable).is_file()
+                and settings.hermes_home and Path(settings.hermes_home).is_dir())
+
+
+def assist_in_hermes(db, config_path: Path, component: str, *, root=None, interpreter=None) -> bool:
+    refresh_hermes(db, config_path, root=root, interpreter=interpreter)
+    settings = read_settings(db, config_path)
+    print("Abriremos Hermes para configurar " + component + ". Las autorizaciones se realizan allí.")
+    print("Cuando termines, escribe /exit en Hermes para regresar a PandApply y comprobar la conexión.")
+    result = launch_setup(component, Path(settings.hermes_executable) if settings.hermes_executable else None,
+                          Path(settings.hermes_home) if settings.hermes_home else None,
+                          browser_mode=settings.browser_mode, cdp_endpoint=settings.browser_cdp_endpoint)
+    if result['status'] == 'conversation_finished':
+        refresh_hermes(db, config_path, root=root, interpreter=interpreter)
+        print("De vuelta en PandApply. Vamos a comprobar lo configurado; cerrar Hermes no confirma la conexión.")
+        return True
+    if result['status'] == 'needs_terminal':
+        print("Abre una terminal interactiva y ejecuta: pandapply connect " + component)
+    elif result['status'] == 'unavailable':
+        print("No hay una instalación y perfil de Hermes disponibles. Instala o inicia Hermes y repite: pandapply connect " + component)
+    else:
+        print("La ayuda de Hermes terminó sin confirmar su resultado. Puedes repetir: pandapply connect " + component)
+    return False
+
+
+def verify_gmail(db, config_path: Path, *, root=None, interpreter=None) -> bool:
+    refresh_hermes(db, config_path, root=root, interpreter=interpreter)
+    settings = read_settings(db, config_path)
+    if not all((settings.hermes_home, settings.hermes_python, settings.hermes_workspace_script)):
+        print("Falta preparar Google Workspace de Hermes o sus dependencias para el puente de PandApply.")
+        return False
+    try:
+        account = HermesWorkspaceReader(Path(settings.hermes_python), Path(settings.hermes_workspace_script),
+                                         home=Path(settings.hermes_home)).primary_account()
+        if settings.gmail_account and account.casefold() != settings.gmail_account.casefold():
+            print("La cuenta autenticada difiere de la guardada. Se conserva la cuenta anterior.")
+            return False
+        patch_settings(db, config_path, {'gmail_account': account}, actor='cli')
+        print("Cuenta comprobada: " + account)
+        return True
+    except (ValueError, OSError, WorkspaceUnavailable):
+        print("No se pudo comprobar Gmail: revisa con Hermes la autorización Google y la compatibilidad del puente Workspace.")
+        return False
 
 
 def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
@@ -104,40 +175,32 @@ def configure_gmail(db, config_path: Path, detected: dict, *, root=None, interpr
     print("1. Comprobar la cuenta ya conectada en Hermes")
     print("2. Configurar cuenta, filtros y permisos; comprobar la conexión después")
     print("3. Configurar Gmail después")
+    print("4. Pedir a Hermes que configure o repare Gmail (instalación y autorización guiadas)")
     settings = read_settings(db, config_path)
-    default = "1" if detected["gmail"] != "not_detected" else "2"
+    default = "1" if detected["gmail"] != "not_detected" else "4" if can_assist(settings) else "2"
     while True:
         choice = ask("¿Cómo quieres configurar Gmail?", default)
-        if choice in ("1", "2", "3"):
+        if choice in ("1", "2", "3", "4"):
             break
-        print("Elige 1, 2 o 3.")
+        print("Elige 1, 2, 3 o 4.")
     if choice == "3":
         print("Gmail pospuesto por tu elección; se conserva la configuración existente.")
         return
     verified = False
     if choice == "1":
-        if settings.hermes_home:
-            refreshed = discover(home=Path(settings.hermes_home), root=root, interpreter=interpreter)
-            paths = {"hermes_python": refreshed["python"], "hermes_workspace_script": refreshed["workspace_script"]}
-            repair = {key: value for key, value in paths.items() if value and (
-                      not getattr(settings, key) or not Path(getattr(settings, key)).is_file())}
-            if repair:
-                settings = patch_settings(db, config_path, repair, actor="cli")
-            if settings.hermes_python and settings.hermes_workspace_script:
-                try:
-                    account = HermesWorkspaceReader(Path(settings.hermes_python), Path(settings.hermes_workspace_script),
-                                                     home=Path(settings.hermes_home)).primary_account()
-                    if settings.gmail_account and account.casefold() != settings.gmail_account.casefold():
-                        print("La cuenta autenticada difiere de la guardada. Se conserva la cuenta anterior.")
-                    else:
-                        settings = patch_settings(db, config_path, {"gmail_account": account}, actor="cli")
-                        verified = True
-                        print("Cuenta comprobada: " + account)
-                except (ValueError, OSError, WorkspaceUnavailable):
-                    print("No se pudo comprobar Gmail mediante Hermes.")
-        if not verified:
-            print("La conexión queda pendiente. Puedes guardar ahora las preferencias de tu cuenta.")
+        verified = verify_gmail(db, config_path, root=root, interpreter=interpreter)
+        settings = read_settings(db, config_path)
+        if (not verified and can_assist(settings)
+                and yes("¿Quieres que Hermes te ayude a configurar o reparar Gmail ahora?")
+                and assist_in_hermes(db, config_path, 'gmail', root=root, interpreter=interpreter)):
+            verified = verify_gmail(db, config_path, root=root, interpreter=interpreter)
+    elif choice == "4" and assist_in_hermes(db, config_path, 'gmail', root=root, interpreter=interpreter):
+        verified = verify_gmail(db, config_path, root=root, interpreter=interpreter)
+    settings = read_settings(db, config_path)
     if not verified:
+        connector_state(db, 'gmail', 'unavailable' if choice in ('1', '4') else 'configured_unverified',
+                        'Conexión pendiente de comprobar; no se habilitaron envíos')
+        print("La conexión queda pendiente. Puedes guardar ahora las preferencias de tu cuenta.")
         while True:
             account = ask("Tu dirección principal de Gmail (Enter sin cuenta para omitir)", settings.gmail_account)
             if not account:
@@ -149,7 +212,7 @@ def configure_gmail(db, config_path: Path, detected: dict, *, root=None, interpr
                 break
             print("Escribe solo una dirección de correo válida, sin nombre ni contraseña.")
         print("Cuenta guardada sin verificar. La autorización se administra en Google Workspace de Hermes.")
-        print("Si falta esa autorización, abre Hermes y pídele configurar Google Workspace para Gmail.")
+        print("Para configurarla o repararla con Hermes después: pandapply connect gmail")
     query = ask("Filtro de correo para el seguimiento Gmail", settings.gmail_query or "newer_than:7d")
     limit = number("Máximo de correos por consulta", settings.gmail_poll_limit, 1, 20)
     interval = number("Intervalo de seguimiento Gmail en minutos", settings.gmail_poll_interval_minutes, 5, 10080)
@@ -163,28 +226,35 @@ def configure_gmail(db, config_path: Path, detected: dict, *, root=None, interpr
     patch_settings(db, config_path, {"gmail_query": query, "gmail_poll_limit": limit,
                    "gmail_poll_interval_minutes": interval, "gmail_enabled": access != "1",
                    "gmail_reply_enabled": access == "3"}, actor="cli")
-    with db:
-        db.execute("INSERT INTO connector_health (connector_id,state,checked_at,detail_redacted) VALUES ('gmail',?,?,?) "
-                   "ON CONFLICT(connector_id) DO UPDATE SET state=excluded.state,checked_at=excluded.checked_at,"
-                   "detail_redacted=excluded.detail_redacted", ("account_verified" if verified else "configured_unverified",
-                    now(), "Identidad comprobada en este setup" if verified else "Preferencias guardadas; autorización pendiente de comprobar"))
+    connector_state(db, 'gmail', 'account_verified' if verified else 'configured_unverified',
+                    'Identidad comprobada en este setup' if verified else 'Preferencias guardadas; autorización pendiente de comprobar')
     print("Preferencias Gmail guardadas. El modo de simulación se conserva; la programación y los envíos no se activan aquí.")
 
 
-def configure_browser(db, config_path: Path) -> None:
+def configure_browser(db, config_path: Path, *, root=None, interpreter=None) -> None:
     print("\nNavegador para las postulaciones")
     print("CDP significa Chrome DevTools Protocol: una conexión local para que PandApply pueda comunicarse con Chrome o Edge.")
     print("Para usar tu navegador existente, debes iniciarlo con depuración remota; abrirlo normalmente no basta.")
     print("1. Navegador administrado por Hermes (prueba con datos ficticios)")
     print("2. Mi navegador existente, mediante una conexión CDP local")
     print("3. Configurar después")
+    print("4. Pedir a Hermes que configure o repare el navegador")
     settings = read_settings(db, config_path)
     default = {"hermes_managed": "1", "cdp": "2", "not_configured": "3"}[settings.browser_mode]
+    if settings.browser_mode == 'not_configured' and can_assist(settings):
+        default = '4'
+    assisted = False
     while True:
         choice = ask("¿Qué navegador quieres utilizar?", default)
+        if choice == '4':
+            assisted = assist_in_hermes(db, config_path, 'browser', root=root, interpreter=interpreter)
+            settings = read_settings(db, config_path)
+            default = {'hermes_managed': '1', 'cdp': '2', 'not_configured': '1' if assisted else '3'}[settings.browser_mode]
+            print("Selecciona ahora la conexión que preparaste para comprobarla en PandApply.")
+            continue
         if choice in ("1", "2", "3"):
             break
-        print("Elige 1, 2 o 3.")
+        print("Elige 1, 2, 3 o 4.")
     if choice == "3":
         print("Comprobación del navegador pendiente; la selección anterior se conserva.")
         return
@@ -222,25 +292,87 @@ def configure_browser(db, config_path: Path) -> None:
                    "VALUES ('browser','not_checked',?,'Nueva selección pendiente de prueba') "
                    "ON CONFLICT(connector_id) DO UPDATE SET state=excluded.state,checked_at=excluded.checked_at,"
                    "detail_redacted=excluded.detail_redacted", (now(),))
-    if not yes("¿Comprobar ahora la conexión del navegador?", default=False):
+    if not assisted and not yes("¿Comprobar ahora la conexión del navegador?", default=False):
         return
+    for attempt in range(2):
+        try:
+            if settings.browser_mode == "cdp":
+                result = probe_cdp(settings.browser_cdp_endpoint)
+                print("Conexión CDP disponible. La automatización con este navegador todavía está pendiente.")
+            else:
+                if not settings.hermes_python or not settings.hermes_root:
+                    raise ValueError("No se pudo preparar la prueba administrada a partir de tu instalación de Hermes")
+                print("Probando Hermes en un formulario local con datos ficticios; puede tardar hasta dos minutos...")
+                result = probe_managed(Path(settings.hermes_python), Path(settings.hermes_root))
+                print("Prueba local del navegador completada; no verifica portales de empleo reales.")
+            state, detail = result["status"], result["scope"]
+            break
+        except Exception:  # noqa: BLE001 - browser errors can contain private paths or page content
+            state, detail = "unavailable", "No se pudo completar la comprobación local del navegador"
+            print(detail + ". Puedes pedir ayuda a Hermes o repetir después con: pandapply connect browser")
+        if assisted or attempt or not can_assist(settings) or not yes("¿Quieres que Hermes te ayude a reparar el navegador ahora?"):
+            break
+        assisted = assist_in_hermes(db, config_path, 'browser', root=root, interpreter=interpreter)
+        if not assisted:
+            break
+        settings = read_settings(db, config_path)
+        if settings.browser_mode == 'cdp':
+            while True:
+                try:
+                    endpoint = cdp_endpoint(ask('Dirección CDP que preparaste con Hermes', settings.browser_cdp_endpoint))
+                    settings = patch_settings(db, config_path, {'browser_cdp_endpoint': endpoint}, actor='cli')
+                    break
+                except ValueError as exc:
+                    print(str(exc))
+    connector_state(db, 'browser', state, detail)
+
+
+def configure_whatsapp(db, config_path: Path, *, root=None, interpreter=None) -> None:
+    print('\nConexión WhatsApp de Hermes (opcional)')
+    settings = read_settings(db, config_path)
+    if not settings.hermes_home:
+        print('WhatsApp pendiente: inicia Hermes y repite pandapply connect whatsapp. Puedes continuar con CLI/web.')
+        return
+    detected = refresh_hermes(db, config_path, root=root, interpreter=interpreter)
+    settings = read_settings(db, config_path)
+    found = detected['whatsapp'] != 'not_detected'
+    print('Se detectó una sesión existente; todavía no verifica el gateway.' if found
+          else 'No se detectó una sesión WhatsApp en el perfil seleccionado.')
+    if (can_assist(settings) and yes('¿Quieres configurar o reparar WhatsApp con ayuda de Hermes?', default=not found)
+            and assist_in_hermes(db, config_path, 'whatsapp', root=root, interpreter=interpreter)):
+        detected = refresh_hermes(db, config_path, root=root, interpreter=interpreter)
+        found = detected['whatsapp'] != 'not_detected'
+    state = 'session_detected_not_verified' if found else 'unavailable'
+    connector_state(db, 'whatsapp', state, 'Sesión detectada; gateway y entrega sin comprobar' if found
+                    else 'No se detectó sesión; configuración pendiente')
+    print('Sesión detectada. El saludo opcional se confirma por separado.' if found
+          else 'Conexión pendiente. Puedes repetir: pandapply connect whatsapp')
+
+
+def connect_integration(database: Path, component: str) -> int:
+    """Repeat one guided connection without revisiting profiles or sending a pilot."""
     try:
-        if settings.browser_mode == "cdp":
-            result = probe_cdp(settings.browser_cdp_endpoint)
-            print("Conexión CDP disponible. La automatización con este navegador todavía está pendiente.")
-        else:
-            if not settings.hermes_python or not settings.hermes_root:
-                raise ValueError("No se pudo preparar la prueba administrada a partir de tu instalación de Hermes")
-            print("Probando Hermes en un formulario local con datos ficticios; puede tardar hasta dos minutos...")
-            result = probe_managed(Path(settings.hermes_python), Path(settings.hermes_root))
-            print("Prueba local del navegador completada; no verifica portales de empleo reales.")
-        state, detail = result["status"], result["scope"]
-    except Exception:  # noqa: BLE001 - browser errors can contain private paths or page content
-        state, detail = "unavailable", "No se pudo completar la comprobación local del navegador"
-        print(detail + ". Puedes continuar y repetir la comprobación después.")
-    with db:
-        db.execute("UPDATE connector_health SET state=?,checked_at=?,detail_redacted=? WHERE connector_id='browser'",
-                   (state, now(), detail))
+        migrate(database)
+        with closing(connect(database)) as db:
+            config_path = database.parent / 'config.json'
+            detected = refresh_hermes(db, config_path)
+            if component == 'gmail':
+                configure_gmail(db, config_path, detected)
+            elif component == 'browser':
+                configure_browser(db, config_path)
+            elif component == 'whatsapp':
+                configure_whatsapp(db, config_path)
+            else:
+                raise ValueError('Unknown integration')
+            check_database(db)
+        print('Paso terminado. Revisa el resultado de la comprobación; los estados pendientes no son conexiones verificadas.')
+        return 0
+    except (EOFError, KeyboardInterrupt):
+        print('Configuración interrumpida. Los datos ya guardados se conservan.')
+        return 130
+    except (OSError, ValueError, sqlite3.Error):
+        print('No se pudo completar la configuración local; revisa Hermes y el acceso al directorio de PandApply.')
+        return 1
 
 
 def dashboard(database: Path, *, host: str = "127.0.0.1", port: int = 8765, background: bool = True) -> None:
@@ -321,7 +453,7 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             print("Gmail: " + ("autorización existente detectada" if detected["gmail"] != "not_detected" else "no detectado"))
             print("WhatsApp: " + ("sesión existente detectada; canal PandApply pendiente" if detected["whatsapp"] != "not_detected" else "no detectado (opcional)"))
             configure_gmail(db, config_path, detected, root=root, interpreter=interpreter)
-            configure_browser(db, config_path)
+            configure_browser(db, config_path, root=root, interpreter=interpreter)
             print("\n2. Tus preferencias de búsqueda")
             print("Cada perfil representa un cargo a buscar y sus preferencias, por ejemplo 'Backend Developer'.")
             print("Su nombre se usa como término de búsqueda. Después elegirás los perfiles que quieras utilizar.")
@@ -372,6 +504,7 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
             if yes("¿Configurar ahora los perfiles, filtros y límites de búsqueda?"):
                 configure_search(db, config_path, profile_id)
             print("\n4. Piloto de conexión por WhatsApp")
+            configure_whatsapp(db, config_path, root=root, interpreter=interpreter)
             print("Este piloto prueba el saludo. La recepción automática de respuestas y la primera búsqueda real aún están pendientes.")
             if yes("¿Enviar el saludo de prueba a tu propio WhatsApp?", default=False):
                 from pandapply.adapters.hermes.whatsapp import (
@@ -395,12 +528,19 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                             print("Mensaje: " + INVITATION)
                             if yes("¿Confirmas que es tu número y quieres enviar este saludo?", default=False):
                                 patch_settings(db, config_path, {"whatsapp_owner_jid": target}, actor="cli")
+                                failed = False
                                 try:
                                     outcome = invite(db, HermesWhatsApp(Path(settings.hermes_executable), Path(settings.hermes_home)),
                                                      target, confirm=True)
                                     print("Estado del piloto: " + outcome["status"] + ". No se repetirá el saludo automáticamente.")
+                                    failed = outcome['status'] != 'SENT'
                                 except (ValueError, OSError, WhatsAppOutcomeUnknown) as exc:
                                     print(str(exc))
+                                    failed = True
+                                if failed:
+                                    print('Para revisar la conexión sin repetir el saludo: pandapply connect whatsapp')
+                                    if can_assist(settings) and yes('¿Abrir Hermes para revisar WhatsApp sin reenviar el saludo?', default=False):
+                                        assist_in_hermes(db, config_path, 'whatsapp', root=root, interpreter=interpreter)
                             break
                         except ValueError as exc:
                             print(str(exc))

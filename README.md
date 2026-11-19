@@ -29,13 +29,13 @@ El instalador crea un entorno virtual exclusivo, instala las dependencias y abre
 El asistente te guía para:
 
 1. Elegir Hermes y confirmar su perfil detectado, o indicar su ubicación si hace falta.
-2. Configurar Gmail mediante un paso que siempre aparece: comprobar la cuenta de Hermes, guardar cuenta y preferencias para conectar después, o posponerlo. La sesión de WhatsApp se reconoce, pero su canal en PandApply sigue pendiente.
+2. Configurar Gmail mediante un paso que siempre aparece: comprobar la cuenta de Hermes, pedirle a Hermes que configure o repare la conexión, guardar preferencias para conectar después, o posponerlo. Si una comprobación falla, se ofrece ayuda de Hermes y una nueva comprobación al volver.
    Con la cuenta guardada, el asistente pide filtro, límite de correos, intervalo y permisos (deshabilitado, consulta o respuestas con aprobación). Guarda la configuración sin desactivar el modo de simulación ni activar una tarea programada.
-   El asistente también permite elegir navegador administrado por Hermes o conexión local CDP a un navegador existente y comprobarlo. La prueba administrada utiliza un formulario local con datos ficticios. La comprobación CDP solo verifica que la conexión responde; la automatización de ese navegador sigue pendiente. Puedes dejarlo para después.
+   El asistente también permite preparar el navegador con ayuda de Hermes, elegir administrado o conexión local CDP y comprobarlo. La prueba administrada utiliza un formulario local con datos ficticios. La comprobación CDP solo verifica que la conexión responde; la automatización de ese navegador sigue pendiente. Puedes dejarlo para después.
 3. Elegir o crear un perfil profesional y registrar un CV PDF/DOCX, que también puedes agregar después.
 4. Elegir los perfiles que usarás para buscar y configurar ubicaciones, idiomas, habilidades como filtros, modalidad y piso salarial. El cargo se toma del nombre del perfil; no se vuelve a preguntar.
 5. Elegir el máximo diario de postulaciones, el volumen de evaluación y la frecuencia. Guardar esos valores no activa postulaciones ni crea un cron.
-6. Ofrecer un saludo piloto a tu propio WhatsApp mediante Hermes, con confirmación del número y del mensaje. El intento queda guardado para evitar reenvíos ciegos. La recepción automática de tu respuesta y el inicio de la primera búsqueda real siguen pendientes.
+6. Ofrecer configurar o reparar WhatsApp con Hermes y, por separado, un saludo piloto a tu propio número con confirmación del destino y del mensaje. El intento queda guardado para evitar reenvíos ciegos. La recepción automática de tu respuesta y el inicio de la primera búsqueda real siguen pendientes.
 7. Mostrar lo configurado y lo pendiente y, al final, ofrecer iniciar el panel en segundo plano. La terminal muestra su dirección, usuario y contraseña y queda libre; puedes cerrarla.
 
 SQLite se valida automáticamente durante el asistente (integridad, relaciones y escritura); no necesitas instalar un cliente SQL. Los requisitos adicionales del propietario y sus pendientes se documentan en [docs/10-OWNER-REQUIREMENTS.md](docs/10-OWNER-REQUIREMENTS.md).
@@ -51,6 +51,18 @@ La zona horaria acepta nombres de ciudades como `America/Bogota` y desfases fijo
 Puedes seleccionar varias modalidades: `remote, hybrid`, `remote, hybrid y onsite` o `remoto, híbrido y presencial`. Una vacante cumple el filtro si coincide con cualquiera de las elegidas. `any` acepta todas y se usa sola. Las mismas opciones funcionan en el panel local.
 
 Puedes omitir Gmail y el CV y completar esos datos más adelante. Las credenciales permanecen en Hermes y los archivos originales de CV se conservan. La comprobación de Gmail no habilita respuestas ni envíos. Las integraciones externas son experimentales.
+
+Si falta configurar una integración o falló su conexión, repite solo ese paso:
+
+```sh
+pandapply connect gmail
+pandapply connect browser
+pandapply connect whatsapp
+```
+
+Elige la ayuda de Hermes cuando aparezca. PandApply abre una conversación en la misma terminal y con el perfil Hermes guardado, equivalente a pedirle «Configura Gmail». Hermes te ayuda con componentes faltantes y autorizaciones; escribe `/exit` al terminar para regresar a PandApply. Después se vuelve a comprobar la conexión. No hace falta repetir tus perfiles de búsqueda ni proporcionar rutas de Python.
+
+El comando real para pedirlo directamente a Hermes es `hermes chat -q "Ayúdame a configurar Gmail para PandApply"`; cambia Gmail por navegador o WhatsApp según corresponda. Véase la [referencia oficial de Hermes](https://hermes-agent.nousresearch.com/docs/reference/cli-commands#hermes-chat). PandApply utiliza esa conversación interactiva; `hermes configurar gmail` no se trata como un subcomando nuevo. Si estás en una terminal sin interacción o Hermes no está disponible, el paso queda pendiente y conserva tu configuración. Otros conectores Gmail de Hermes pueden requerir un adaptador de PandApply compatible: la comprobación actual usa Google Workspace y no considera cualquier conversación exitosa como conexión lista.
 
 Para volver al asistente sin reinstalar, ejecuta `.\install.cmd --configure-only` en Windows o `sh install.sh --configure-only` en Linux. Si interrumpes la configuración, se conserva lo que ya hayas guardado. Las instalaciones de Hermes dentro de WSL o Docker requieren ejecutar PandApply en ese mismo entorno o configurar el puente correspondiente; el instalador del host no las conecta automáticamente.
 

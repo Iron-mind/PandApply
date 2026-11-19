@@ -23,6 +23,7 @@
 | 019 | Solicitado por el propietario | Configurar perfiles buscados, filtros y cupos antes de abrir panel | El panel es el último paso del asistente |
 | 020 | Solicitado por el propietario | Piloto WhatsApp con saludo y autorización para primera búsqueda | Validar recorrido externo completo, sin confundir saludo con búsqueda ejecutada |
 | 021 | Solicitado por el propietario | El desarrollador ejecuta pruebas locales; propietario valida integraciones externas necesarias | No delegar pruebas internas al usuario |
+| 022 | Solicitado por el propietario | Usar el propio Hermes para configurar y reparar integraciones ausentes o fallidas | Conversación interactiva con el perfil guardado, regreso al setup y comprobación independiente; sin repetir envíos inciertos |
 
 ## Supuestos de implementación a confirmar con UX en wizard
 

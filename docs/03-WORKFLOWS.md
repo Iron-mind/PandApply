@@ -10,6 +10,13 @@ se inicia en segundo plano y devuelve el control de la terminal; el modo en prim
 plano queda disponible para diagnóstico.
 Un cupo guardado no habilita envíos y una frecuencia guardada no crea un cron por sí sola.
 
+Cuando una integración falta o falla, el propietario puede elegir ayuda de Hermes:
+setup → conversación interactiva en el perfil guardado → instalación/autorización
+guiada → `/exit` → redetección → comprobación independiente de PandApply. Un chat
+terminado no cambia el estado a verificado por sí solo. El paso puede repetirse con
+`pandapply connect gmail`, `browser` o `whatsapp` sin repetir los perfiles ni el piloto.
+Una reparación de WhatsApp no vuelve a enviar un saludo `UNKNOWN`.
+
 El piloto pregunta «Hola, soy PandApply. ¿Quieres que ejecutemos la primera búsqueda
 de vacantes?». El saludo necesita destino propio confirmado, intento persistido,
 recibo y manejo UNKNOWN sin reenvío ciego. Su recepción no es autorización de búsqueda:

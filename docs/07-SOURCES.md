@@ -2,6 +2,13 @@
 
 **Fecha de consulta:** 17 de noviembre de 2026. Son fuentes públicas; las capacidades de productos externos pueden cambiar. Codex debe verificar versiones instaladas antes de programar integraciones.
 
+**Verificación adicional, 18-11-2026:** la referencia CLI y `hermes chat --help`
+confirman `chat -q` como consulta inicial de una conversación cuando hay TTY.
+Se comprobó el parser real y la selección explícita de perfil con el script
+`scripts/hermes_guidance_contract.py`, sin ejecutar un modelo ni OAuth. La forma
+natural «hermes configurar gmail» se implementa como una petición al chat, no como
+un supuesto subcomando de Hermes.
+
 | Fuente oficial | Evidencia relevante para PandApply |
 |---|---|
 | [Hermes Agent GitHub](https://github.com/NousResearch/hermes-agent) | Runtime, gateways, WhatsApp, cron, herramientas |
