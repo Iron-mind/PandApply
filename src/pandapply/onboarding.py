@@ -2,8 +2,10 @@
 
 import os
 import secrets
+import shutil
 import sqlite3
 from contextlib import closing
+from email.utils import parseaddr
 from pathlib import Path
 
 from pandapply.adapters.hermes.installation import discover
@@ -97,8 +99,82 @@ def configure_search(db, config_path: Path, primary_profile_id: str) -> None:
     print("Preferencias guardadas. El cupo no autoriza postulaciones; la búsqueda real y su programación siguen pendientes.")
 
 
+def configure_gmail(db, config_path: Path, detected: dict, *, root=None, interpreter=None) -> None:
+    print("\nGmail: conexión y preferencias")
+    print("1. Comprobar la cuenta ya conectada en Hermes")
+    print("2. Configurar cuenta, filtros y permisos; comprobar la conexión después")
+    print("3. Configurar Gmail después")
+    settings = read_settings(db, config_path)
+    default = "1" if detected["gmail"] != "not_detected" else "2"
+    while True:
+        choice = ask("¿Cómo quieres configurar Gmail?", default)
+        if choice in ("1", "2", "3"):
+            break
+        print("Elige 1, 2 o 3.")
+    if choice == "3":
+        print("Gmail pospuesto por tu elección; se conserva la configuración existente.")
+        return
+    verified = False
+    if choice == "1":
+        if settings.hermes_home:
+            refreshed = discover(home=Path(settings.hermes_home), root=root, interpreter=interpreter)
+            paths = {"hermes_python": refreshed["python"], "hermes_workspace_script": refreshed["workspace_script"]}
+            repair = {key: value for key, value in paths.items() if value and (
+                      not getattr(settings, key) or not Path(getattr(settings, key)).is_file())}
+            if repair:
+                settings = patch_settings(db, config_path, repair, actor="cli")
+            if settings.hermes_python and settings.hermes_workspace_script:
+                try:
+                    account = HermesWorkspaceReader(Path(settings.hermes_python), Path(settings.hermes_workspace_script),
+                                                     home=Path(settings.hermes_home)).primary_account()
+                    if settings.gmail_account and account.casefold() != settings.gmail_account.casefold():
+                        print("La cuenta autenticada difiere de la guardada. Se conserva la cuenta anterior.")
+                    else:
+                        settings = patch_settings(db, config_path, {"gmail_account": account}, actor="cli")
+                        verified = True
+                        print("Cuenta comprobada: " + account)
+                except (ValueError, OSError, WorkspaceUnavailable):
+                    print("No se pudo comprobar Gmail mediante Hermes.")
+        if not verified:
+            print("La conexión queda pendiente. Puedes guardar ahora las preferencias de tu cuenta.")
+    if not verified:
+        while True:
+            account = ask("Tu dirección principal de Gmail (Enter sin cuenta para omitir)", settings.gmail_account)
+            if not account:
+                print("Gmail queda pendiente: no se guardó una cuenta.")
+                return
+            if (len(account) <= 320 and "@" in account and parseaddr(account)[1] == account
+                    and not any(char in account for char in "\r\n\x00 ")):
+                settings = patch_settings(db, config_path, {"gmail_account": account}, actor="cli")
+                break
+            print("Escribe solo una dirección de correo válida, sin nombre ni contraseña.")
+        print("Cuenta guardada sin verificar. La autorización se administra en Google Workspace de Hermes.")
+        print("Si falta esa autorización, abre Hermes y pídele configurar Google Workspace para Gmail.")
+    query = ask("Filtro de correo para el seguimiento Gmail", settings.gmail_query or "newer_than:7d")
+    limit = number("Máximo de correos por consulta", settings.gmail_poll_limit, 1, 20)
+    interval = number("Intervalo de seguimiento Gmail en minutos", settings.gmail_poll_interval_minutes, 5, 10080)
+    print("Permisos Gmail: 1 = deshabilitado; 2 = solo consulta; 3 = consulta y respuestas con aprobación.")
+    default = "3" if settings.gmail_reply_enabled else "2" if settings.gmail_enabled else "1"
+    while True:
+        access = ask("¿Qué uso de Gmail autorizas?", default)
+        if access in ("1", "2", "3"):
+            break
+        print("Elige 1, 2 o 3.")
+    patch_settings(db, config_path, {"gmail_query": query, "gmail_poll_limit": limit,
+                   "gmail_poll_interval_minutes": interval, "gmail_enabled": access != "1",
+                   "gmail_reply_enabled": access == "3"}, actor="cli")
+    with db:
+        db.execute("INSERT INTO connector_health (connector_id,state,checked_at,detail_redacted) VALUES ('gmail',?,?,?) "
+                   "ON CONFLICT(connector_id) DO UPDATE SET state=excluded.state,checked_at=excluded.checked_at,"
+                   "detail_redacted=excluded.detail_redacted", ("account_verified" if verified else "configured_unverified",
+                    now(), "Identidad comprobada en este setup" if verified else "Preferencias guardadas; autorización pendiente de comprobar"))
+    print("Preferencias Gmail guardadas. El modo de simulación se conserva; la programación y los envíos no se activan aquí.")
+
+
 def configure_browser(db, config_path: Path) -> None:
     print("\nNavegador para las postulaciones")
+    print("CDP significa Chrome DevTools Protocol: una conexión local para que PandApply pueda comunicarse con Chrome o Edge.")
+    print("Para usar tu navegador existente, debes iniciarlo con depuración remota; abrirlo normalmente no basta.")
     print("1. Navegador administrado por Hermes (prueba con datos ficticios)")
     print("2. Mi navegador existente, mediante una conexión CDP local")
     print("3. Configurar después")
@@ -114,7 +190,24 @@ def configure_browser(db, config_path: Path) -> None:
         return
     patch = {"browser_mode": "hermes_managed" if choice == "1" else "cdp", "browser_cdp_endpoint": ""}
     if choice == "2":
-        print("Habilita la conexión de depuración local de Chrome/Edge. La comprobación consulta solo su estado.")
+        print("Inicia Chrome o Edge con --remote-debugging-port=9222 y un --user-data-dir propio para esa ventana.")
+        if os.name == "nt":
+            candidates = [Path(base) / relative for base in (os.environ.get("ProgramFiles", ""),
+                          os.environ.get("ProgramFiles(x86)", ""), os.environ.get("LOCALAPPDATA", "")) if base
+                          for relative in ("Google/Chrome/Application/chrome.exe", "Microsoft/Edge/Application/msedge.exe")]
+            browser = next((str(path) for path in candidates if path.is_file()), shutil.which("chrome") or shutil.which("msedge"))
+            if browser:
+                quoted = browser.replace("'", "''")
+                print(f"PowerShell: & '{quoted}' --remote-debugging-port=9222 --user-data-dir=\"$env:LOCALAPPDATA\\PandApply\\BrowserCDP\"")
+            else:
+                print("No se detectó Chrome/Edge; consulta la guía enlazada para localizar su ejecutable y usar esos parámetros.")
+        else:
+            print("Terminal: google-chrome --remote-debugging-port=9222 --user-data-dir=\"$HOME/.local/share/pandapply/chrome-cdp\"")
+        print("Esa ventana usa un perfil separado; inicia sesión allí en los sitios que quieras utilizar.")
+        print("Comprueba en ese navegador http://127.0.0.1:9222/json/version; debe aparecer información del navegador.")
+        print("Guía Chrome: https://developer.chrome.com/blog/remote-debugging-port")
+        print("Guía Edge: https://learn.microsoft.com/microsoft-edge/devtools/protocol/")
+        print("Mantén esa conexión solo en tu equipo. Si eliges otro puerto, utiliza ese mismo número a continuación.")
         while True:
             try:
                 patch["browser_cdp_endpoint"] = cdp_endpoint(ask("Dirección CDP local (IP:puerto o URL)", settings.browser_cdp_endpoint or "http://127.0.0.1:9222"))
@@ -150,7 +243,19 @@ def configure_browser(db, config_path: Path) -> None:
                    (state, now(), detail))
 
 
-def dashboard(database: Path, *, host: str = "127.0.0.1", port: int = 8765) -> None:
+def dashboard(database: Path, *, host: str = "127.0.0.1", port: int = 8765, background: bool = True) -> None:
+    if background:
+        from pandapply.panel_process import start
+
+        result = start(database, port=port)
+        print("Panel en segundo plano: " + result["url"])
+        if result.get("password"):
+            print("Usuario: pandapply")
+            print("Contraseña: " + result["password"])
+        else:
+            print("Ya estaba iniciado; utiliza la contraseña de su arranque. Para renovarla: pandapply web --restart")
+        print("Puedes cerrar esta terminal. Para detener el panel: pandapply web --stop")
+        return
     import uvicorn
 
     from pandapply.web import create_app
@@ -215,50 +320,7 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
                     settings = patch_settings(db, config_path, patch, actor="cli")
             print("Gmail: " + ("autorización existente detectada" if detected["gmail"] != "not_detected" else "no detectado"))
             print("WhatsApp: " + ("sesión existente detectada; canal PandApply pendiente" if detected["whatsapp"] != "not_detected" else "no detectado (opcional)"))
-            print("\nConexión Gmail")
-            if not detected["home"]:
-                print("Gmail queda pendiente porque no hay una instalación de Hermes seleccionada.")
-            if detected["home"] and yes("¿Comprobar ahora tu cuenta de Gmail en Hermes?", default=detected["gmail"] != "not_detected"):
-                print("Preparando la conexión con la instalación existente de Hermes...")
-                refreshed = discover(home=Path(settings.hermes_home), root=root, interpreter=interpreter)
-                detected_paths = {"hermes_python": refreshed["python"],
-                                  "hermes_workspace_script": refreshed["workspace_script"]}
-                repair = {key: value for key, value in detected_paths.items() if value and (
-                          not getattr(settings, key) or not Path(getattr(settings, key)).is_file())}
-                if repair:
-                    settings = patch_settings(db, config_path, repair, actor="cli")
-                if settings.hermes_python and settings.hermes_workspace_script:
-                    try:
-                        reader = HermesWorkspaceReader(Path(settings.hermes_python), Path(settings.hermes_workspace_script),
-                                                       home=Path(settings.hermes_home))
-                        account = reader.primary_account()
-                        if settings.gmail_account and settings.gmail_account.casefold() != account.casefold():
-                            print("La cuenta de Hermes difiere de la guardada. Se conserva la configuración anterior.")
-                        else:
-                            settings = patch_settings(db, config_path, {"gmail_account": account}, actor="cli")
-                            print("Cuenta comprobada: " + account)
-                    except (OSError, ValueError, WorkspaceUnavailable):
-                        print("No se pudo comprobar Gmail. Puedes continuar y revisar su autorización en Hermes después.")
-                else:
-                    print("No se pudo preparar la conexión con Gmail automáticamente. "
-                          "Gmail queda pendiente; puedes continuar y revisar la instalación de Hermes después.")
-            settings = read_settings(db, config_path)
-            if settings.gmail_account:
-                query = ask("Filtro de correo para el seguimiento Gmail", settings.gmail_query or "newer_than:7d")
-                limit = number("Máximo de correos por consulta", settings.gmail_poll_limit, 1, 20)
-                interval = number("Intervalo de seguimiento Gmail en minutos", settings.gmail_poll_interval_minutes, 5, 10080)
-                print("Permisos Gmail: 1 = deshabilitado; 2 = solo consulta; 3 = consulta y respuestas con aprobación.")
-                default = "3" if settings.gmail_reply_enabled else "2" if settings.gmail_enabled else "1"
-                while True:
-                    access = ask("¿Qué uso de Gmail autorizas?", default)
-                    if access in ("1", "2", "3"):
-                        break
-                    print("Elige 1, 2 o 3.")
-                patch_settings(db, config_path, {"gmail_query": query, "gmail_poll_limit": limit,
-                               "gmail_poll_interval_minutes": interval, "gmail_enabled": access != "1",
-                               "gmail_reply_enabled": access == "3"}, actor="cli")
-                print("Cuenta, filtro, intervalo y permisos guardados. El modo de simulación se conserva; "
-                      "la tarea programada todavía debe instalarse y activarse explícitamente.")
+            configure_gmail(db, config_path, detected, root=root, interpreter=interpreter)
             configure_browser(db, config_path)
             print("\n2. Tus preferencias de búsqueda")
             print("Cada perfil representa un cargo a buscar y sus preferencias, por ejemplo 'Backend Developer'.")
@@ -346,7 +408,7 @@ def run(database: Path, *, home: Path | None = None, root: Path | None = None,
         print("\nConfiguración local guardada. Las integraciones externas siguen siendo experimentales.")
         print("Pendiente: búsqueda real y programación, recepción de respuestas WhatsApp y activación del seguimiento Gmail.")
         print("\n5. Panel local (último paso)")
-        if yes("¿Abrir el panel local ahora?"):
+        if yes("¿Iniciar el panel local en segundo plano ahora?"):
             dashboard(database)
         print("Puedes repetir este asistente sin perder tus perfiles ni decisiones.")
         return 0

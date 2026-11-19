@@ -69,7 +69,7 @@ def test_cdp_probe_reads_only_local_version_and_never_follows_redirects():
             cdp_endpoint(endpoint)
 
 
-def test_browser_setup_persists_selection_and_precise_check_scope(tmp_path, monkeypatch):
+def test_browser_setup_persists_selection_and_precise_check_scope(tmp_path, monkeypatch, capsys):
     path = tmp_path / "data.db"
     migrate(path)
     with local_browser() as (endpoint, _):
@@ -84,3 +84,6 @@ def test_browser_setup_persists_selection_and_precise_check_scope(tmp_path, monk
             replies = iter(["1", "n"])
             configure_browser(db, tmp_path / "config.json")
             assert db.execute("SELECT state FROM connector_health WHERE connector_id='browser'").fetchone()[0] == "not_checked"
+    output = capsys.readouterr().out
+    assert "Chrome DevTools Protocol" in output and "--remote-debugging-port=9222" in output
+    assert "--user-data-dir" in output and "/json/version" in output

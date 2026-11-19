@@ -11,3 +11,5 @@ dist/
 *.db
 *.db-wal
 *.db-shm
+panel-control.json
+panel.log

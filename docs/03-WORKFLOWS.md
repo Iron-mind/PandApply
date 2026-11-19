@@ -5,7 +5,9 @@
 El orden requerido es instalación aislada → detección de Hermes y perfil → validación
 SQLite → cuenta/filtro Gmail → perfiles/CV → selección de perfiles de búsqueda y
 preferencias → cupos/frecuencia → resumen de pendientes → piloto WhatsApp → panel.
-El panel se ofrece al final porque su servidor mantiene ocupada la terminal.
+El panel se ofrece al final, después de configurar las integraciones. Por defecto
+se inicia en segundo plano y devuelve el control de la terminal; el modo en primer
+plano queda disponible para diagnóstico.
 Un cupo guardado no habilita envíos y una frecuencia guardada no crea un cron por sí sola.
 
 El piloto pregunta «Hola, soy PandApply. ¿Quieres que ejecutemos la primera búsqueda

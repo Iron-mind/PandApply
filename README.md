@@ -25,14 +25,14 @@ El instalador crea un entorno virtual exclusivo, instala las dependencias y abre
 El asistente te guía para:
 
 1. Elegir Hermes y confirmar su perfil detectado, o indicar su ubicación si hace falta.
-2. Reutilizar la autorización existente de Gmail y comprobar la cuenta si lo deseas. La sesión de WhatsApp se reconoce, pero su canal en PandApply sigue pendiente.
+2. Configurar Gmail mediante un paso que siempre aparece: comprobar la cuenta de Hermes, guardar cuenta y preferencias para conectar después, o posponerlo. La sesión de WhatsApp se reconoce, pero su canal en PandApply sigue pendiente.
    Con la cuenta guardada, el asistente pide filtro, límite de correos, intervalo y permisos (deshabilitado, consulta o respuestas con aprobación). Guarda la configuración sin desactivar el modo de simulación ni activar una tarea programada.
    El asistente también permite elegir navegador administrado por Hermes o conexión local CDP a un navegador existente y comprobarlo. La prueba administrada utiliza un formulario local con datos ficticios. La comprobación CDP solo verifica que la conexión responde; la automatización de ese navegador sigue pendiente. Puedes dejarlo para después.
 3. Elegir o crear un perfil profesional y registrar un CV PDF/DOCX, que también puedes agregar después.
 4. Elegir los perfiles que usarás para buscar y configurar ubicaciones, idiomas, habilidades como filtros, modalidad y piso salarial. El cargo se toma del nombre del perfil; no se vuelve a preguntar.
 5. Elegir el máximo diario de postulaciones, el volumen de evaluación y la frecuencia. Guardar esos valores no activa postulaciones ni crea un cron.
 6. Ofrecer un saludo piloto a tu propio WhatsApp mediante Hermes, con confirmación del número y del mensaje. El intento queda guardado para evitar reenvíos ciegos. La recepción automática de tu respuesta y el inicio de la primera búsqueda real siguen pendientes.
-7. Mostrar lo configurado y lo pendiente y, al final, ofrecer iniciar el panel local. La terminal muestra su dirección, usuario y contraseña; Ctrl+C lo detiene.
+7. Mostrar lo configurado y lo pendiente y, al final, ofrecer iniciar el panel en segundo plano. La terminal muestra su dirección, usuario y contraseña y queda libre; puedes cerrarla.
 
 SQLite se valida automáticamente durante el asistente (integridad, relaciones y escritura); no necesitas instalar un cliente SQL. Los requisitos adicionales del propietario y sus pendientes se documentan en [docs/10-OWNER-REQUIREMENTS.md](docs/10-OWNER-REQUIREMENTS.md).
 
@@ -89,6 +89,8 @@ El asistente resuelve internamente el Python y Google Workspace de Hermes; no pi
 
 Para un navegador existente, la dirección CDP admite `127.0.0.1:54723` o `http://127.0.0.1:54723`: el asistente agrega `http://` cuando hace falta y muestra la dirección reconocida. El puerto debe corresponder a la conexión CDP de tu navegador. Reconocer el formato y comprobar que el navegador responde son pasos separados.
 
+El asistente explica **CDP (Chrome DevTools Protocol)** antes de pedir esa conexión y muestra cómo iniciar Chrome o Edge con depuración remota y un perfil separado. Encontrarás instrucciones completas de Gmail y CDP en [la guía de conexiones](docs/11-CONNECTIONS-AND-PANEL.md).
+
 Con las rutas detectadas, `pandapply gmail search-real --query CONSULTA` ya no necesita repetirlas. Tras guardar la cuenta y consulta en el panel, `pandapply run mail` utiliza esos valores. Las credenciales siguen administradas por Hermes; cambiar el perfil de Hermes después del setup no cambia el perfil guardado en PandApply.
 
 `pandapply setup --verify-gmail` permite comprobar la autorización existente consultando únicamente la identidad de la cuenta en Gmail y guardar su dirección principal. Puede refrescar el token mediante Hermes, pero no inicia un nuevo emparejamiento ni lee mensajes. Si la cuenta difiere de la configurada, conserva esta y devuelve un error. Esta comprobación opcional no se combina con `--dry-run` y no habilita el seguimiento ni las respuestas. Se ha probado con un proveedor simulado; requiere una prueba funcional con la cuenta del usuario.
@@ -121,7 +123,9 @@ Con al menos una habilidad verificada, `pandapply profiles generate-cv ID_DEL_PE
 
 `pandapply export --format json` y `pandapply export --format csv` escriben una copia de la base local en la salida estándar; contienen datos personales y deben guardarse en una ubicación protegida. El CSV contiene una fila por registro con el nombre de la tabla y los datos en JSON. La exportación incluye rutas y hashes de documentos, pero no sus archivos originales ni credenciales externas.
 
-`pandapply web` abre un servidor local en `127.0.0.1:8765`. El enlace lleva a una pantalla de inicio de sesión: introduce el usuario `pandapply` y la contraseña aleatoria mostrada en la terminal, en líneas separadas. La contraseña cambia al reiniciar el panel. La sesión dura hasta 12 horas; puedes terminarla con «Cerrar sesión» y se invalida al reiniciar el servidor. El panel permite consultar la actividad, solicitar sugerencias y aprobar o rechazar decisiones locales; muestra el texto completo y la cuenta antes de enviar una respuesta aprobada. Para detenerlo, usa Ctrl+C. La API sigue aceptando autenticación Basic o Bearer para lecturas y exige Bearer para sus modificaciones. Las decisiones están protegidas contra solicitudes entre sitios y repeticiones. Solo se implementa una parte del contrato de `specs/openapi.yaml`.
+`pandapply web` inicia el servidor local en segundo plano en `127.0.0.1:8765`. Puedes cerrar la terminal. El enlace abre el login: usa `pandapply` y la contraseña mostrada al arrancarlo. La contraseña no se guarda en disco; si la olvidas, reinicia con `pandapply web --restart`. La sesión dura hasta 12 horas y se invalida al reiniciar el servidor. El panel permite consultar actividad y aprobar decisiones y respuestas. La API acepta Basic o Bearer para lecturas y exige Bearer para modificaciones. Solo se implementa una parte de `specs/openapi.yaml`.
+
+Usa `pandapply web --status` para consultar el panel y `pandapply web --stop` para detenerlo. `pandapply web --foreground` lo ejecuta en la terminal y permite detenerlo con Ctrl+C. Desde el checkout Windows también puedes usar `.\.venv\Scripts\pandapply.exe web --stop` sin activar el entorno. El segundo plano no configura autoarranque al encender el equipo.
 
 Si tenías una pestaña abierta antes de reiniciar el panel, vuelve a abrir `/login` y usa la nueva contraseña de la terminal. Un formulario desactualizado muestra una página de recuperación; su enlace abre un formulario nuevo y no repite la operación anterior. Tras actualizar el código, reinicia el panel para que cargue la corrección.
 

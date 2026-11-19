@@ -46,6 +46,14 @@ El asistente configura `gmail_poll_interval_minutes` (5–10080), `gmail_poll_li
 `dry_run`; guardar permisos no crea intentos de respuesta ni tareas. Al instalar
 el cron, su intervalo predeterminado toma el valor guardado por el asistente.
 
+El proceso de panel en segundo plano mantiene sus sesiones en memoria. Usa un token
+de control propio en `panel-control.json`, protegido por los permisos del directorio
+del usuario y modo 0600 en POSIX; no es la contraseña del login y no permite leer datos
+del panel. El hijo recibe su contraseña por stdin y no la registra en archivos ni argv.
+Los endpoints privados `/_panel/status` y `/_panel/stop` solo existen en ese modo y
+exigen el token de control, rechazan peticiones de navegador con Origin y no forman
+parte de `/api/v1`. No se detienen procesos ajenos mediante un PID tomado del archivo.
+
 ## 1. Estrategia de persistencia
 
 **SQLite** es la fuente de verdad transaccional para vacantes, postulaciones, ejecución, decisiones, deduplicación, correos y auditoría. **Markdown** almacena conocimiento profesional transparente y modificable. **Archivos PDF/DOCX** se leen como fuentes (originales inmutables); **PDF generados** son artefactos derivados. Configuración YAML local se valida con Pydantic.

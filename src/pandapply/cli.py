@@ -66,6 +66,12 @@ def main() -> int:
     web = sub.add_parser("web", help="Start the authenticated local dashboard")
     web.add_argument("--host", default="127.0.0.1", choices=["127.0.0.1"])
     web.add_argument("--port", type=int, default=8765)
+    web_mode = web.add_mutually_exclusive_group()
+    web_mode.add_argument("--foreground", action="store_true", help="Run in the terminal instead of the background")
+    web_mode.add_argument("--background", action="store_true", help="Run in the background (default)")
+    web_mode.add_argument("--status", action="store_true", help="Show whether the background panel is running")
+    web_mode.add_argument("--stop", action="store_true", help="Stop only the panel managed by PandApply")
+    web_mode.add_argument("--restart", action="store_true", help="Restart the background panel with a new password")
     sandbox = sub.add_parser("sandbox", help="Start the synthetic ATS on loopback")
     sandbox.add_argument("--port", type=int, default=8766)
     sub.add_parser("demo", help="Run the complete local simulation with temporary synthetic data")
@@ -492,8 +498,21 @@ def main() -> int:
         if not 1 <= args.port <= 65535:
             parser.error("Port must be between 1 and 65535")
         from pandapply.onboarding import dashboard
+        from pandapply.panel_process import status, stop
 
-        dashboard(path, host=args.host, port=args.port)
+        try:
+            if args.stop:
+                result = stop(path)
+                print("No hay un panel gestionado en segundo plano." if result.get("already_stopped") else "Panel detenido.")
+            elif args.status:
+                current = status(path)
+                print("Panel en segundo plano: " + current["url"] if current["status"] == "running" else "No hay un panel gestionado en segundo plano.")
+            else:
+                if args.restart:
+                    stop(path)
+                dashboard(path, host=args.host, port=args.port, background=not args.foreground)
+        except (OSError, ValueError) as exc:
+            parser.error(str(exc))
         return 0
     if args.command == "profiles":
         if not path.exists():

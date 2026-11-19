@@ -120,3 +120,10 @@ remotos; no prueban control de un navegador personal real.
 Hermes: login, navegación, creación, edición y eliminación de un perfil ficticio,
 persistencia en SQLite y vista móvil sin desbordamiento horizontal. Las capturas
 usan exclusivamente datos sintéticos y pueden guardarse en `/artifacts` del contenedor.
+
+El arranque en segundo plano se comprobó con un proceso real en Windows y mediante
+`scripts/easy_setup_smoke.py` en Linux sin red: el comando de arranque termina,
+el panel sigue respondiendo y la CLI lo consulta y detiene. La prueba Windows
+incluye login con cookie y rechazo de una solicitud de parada sin token de control.
+Las contraseñas no aparecen en el archivo de control ni en el log. No se probó
+autoarranque del sistema; ese comportamiento no está implementado.
