@@ -1,5 +1,9 @@
 # PandApply
 
+<p align="center">
+  <img src="docs/assets/pandapply-logo.png" alt="Logo de PandApply: panda con cinta roja, lápiz y bambú" width="240">
+</p>
+
 PandApply es un proyecto en desarrollo para asistir en la búsqueda de empleo desde el equipo del usuario. Incluye una demo local completa con datos ficticios y conectores experimentales para Hermes. El diseño completo está en [docs/](docs/05-IMPLEMENTATION-PLAN.md).
 
 ## Getting started con Hermes
